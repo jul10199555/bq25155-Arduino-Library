@@ -1,4 +1,6 @@
+<a id="readme-top"></a>
 # bq25155 Arduino Library
+[![License: MIT][lic-shield]][license]
 A robust and fully-featured Arduino library for interfacing with the **Texas Instruments [bq25155](https://www.ti.com/product/BQ25155)** battery charger IC via I2C.  
 Built with embedded safety in mind, this library offers full control over all registers, configuration of charging parameters, real-time monitoring, and low-power mode operation.
 
@@ -66,6 +68,5 @@ void loop() {
 }
 ```
 
-## License
-
-MIT
+[lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
+[license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
