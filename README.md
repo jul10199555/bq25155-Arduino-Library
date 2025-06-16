@@ -75,4 +75,4 @@ void loop() {
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
 
 [rel-ver]: https://img.shields.io/badge/-v1.0.0-green
-[release]: https://github.com/https://github.com/jul10199555/bq25155-Arduino-Library/releases
+[release]: https://github.com/jul10199555/bq25155-Arduino-Library/releases
