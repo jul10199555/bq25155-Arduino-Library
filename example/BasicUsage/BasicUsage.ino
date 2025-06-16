@@ -19,7 +19,7 @@ void setup() {
     100000,   // Charge current in uA
     25000,    // Precharge current in uA
     150,      // Input current limit in mA
-    30         // Safety timer (in tenths of an hour (e.g., 15 = 1.5h, 30 = 3h))
+    30        // Safety timer in tenths of an hour (e.g., 15 = 1.5h, 30 = 3h)
   );
 
   Serial.println("Charger configured.");
