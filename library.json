@@ -1,0 +1,18 @@
+{
+    "name": "bq25155",
+    "keywords": "i2c, wire, battery management system, battery charging, bq25155",
+    "description": "Library for bq25155 Single Cell battery Charger",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jul10199555/bq25155-Arduino-Library"
+    },
+    "authors": {
+        "name": "jul10199555",
+        "url": "https://github.com/jul10199555",
+        "maintainer": true
+    },
+    "version": "1.0.0",
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": "*"
+}

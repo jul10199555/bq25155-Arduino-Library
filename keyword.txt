@@ -1,0 +1,41 @@
+###########################################
+# Syntax Coloring Map for bq25155
+###########################################
+
+###########################################
+# Datatypes			(KEYWORD1)
+###########################################
+
+bq25155				KEYWORD1
+
+###########################################
+# Methods and Functions		(KEYWORD2)
+###########################################
+		
+begin				KEYWORD2
+initCHG				    KEYWORD2
+setChargeVoltage           		KEYWORD2
+setChargeCurrent				    KEYWORD2
+setPreChargeCurrent				    KEYWORD2
+EnableFastCharge				KEYWORD2
+DisableFastCharge				KEYWORD2
+setILIMto150mA				KEYWORD2
+setChgSafetyTimer				KEYWORD2
+setChgSafetyTimerto3h				KEYWORD2
+DisableChgSafetyTimer				KEYWORD2
+readFLAG0				KEYWORD2
+CHRG_DONE_Flag				KEYWORD2
+getFast_Charge_Current_Limit				KEYWORD2
+getInput_Current_Limit				KEYWORD2
+getPreCharge_Current_Limit				KEYWORD2
+getDeviceID				KEYWORD2
+
+###########################################
+# Constants			(LITERAL1)
+###########################################
+
+TS_RANK				LITERAL1
+CHG_FAULT				LITERAL1
+VBUS_STAT				LITERAL1
+CHG_STAT				LITERAL1
+VSYS_STAT       LITERAL1
