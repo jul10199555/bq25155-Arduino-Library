@@ -1,12 +1,15 @@
 <a id="readme-top"></a>
-# bq25155 Arduino Library
+# bq25155 Arduino Library #
+
+[![Version Badge][rel-ver]][release]
 [![License: MIT][lic-shield]][license]
+
 A robust and fully-featured Arduino library for interfacing with the **Texas Instruments [bq25155](https://www.ti.com/product/BQ25155)** battery charger IC via I2C.  
 Built with embedded safety in mind, this library offers full control over all registers, configuration of charging parameters, real-time monitoring, and low-power mode operation.
 
 Supports full register-level access, interrupt masking, and safe flag reading/caching.
 
-## ✨ Features
+## ✨ Features ##
 
 - 📡 I2C communication with smart **LPM pin toggling** (VIN-independent)
 - 🔁 Full read/write access to **all configuration registers**
@@ -32,15 +35,15 @@ Supports full register-level access, interrupt masking, and safe flag reading/ca
 	- 🔥 Thermal and safety fault detection
 - 💤 LPM (Low Power Mode) pin handling for communication without VIN
 
-## Getting Started
+## Getting Started ## 
 
-### Dependencies
+### Dependencies ###
 
 - Arduino Environment
 - I2C (`Wire`)
 - Tested with a nRF52840
 
-### Installation
+### Installation ###
 
 Clone or download this repository and place it in your Arduino `libraries/` folder.
 
@@ -48,7 +51,7 @@ Clone or download this repository and place it in your Arduino `libraries/` fold
 git clone https://github.com/jul10199555/bq25155-Arduino-Library.git
 ```
 
-### Example
+### Example ###
 
 ```cpp
 #include "bq25155.h"
@@ -70,3 +73,6 @@ void loop() {
 
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
+
+[rel-ver]: https://img.shields.io/badge/-v1.0.0-green
+[release]: https://github.com/https://github.com/jul10199555/bq25155-Arduino-Library/releases
