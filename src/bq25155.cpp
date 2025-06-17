@@ -74,7 +74,7 @@ bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent
     else if(ChgSftyTimer_hours < 150)
         setChgSafetyTimerto12h();
     
-    return true;
+    return EnableCharge();
 }
 
 bool bq25155::writeRegister(uint8_t reg, uint8_t value) {
@@ -1298,11 +1298,13 @@ bool bq25155::EnableRST14sWD() {
 
 bool bq25155::isChargeEnabled() { return (readRegister(REG_ICCTRL2) & CHARGER_DISABLE_MASK) == 0; }
 bool bq25155::EnableCharge() {
+    digitalWrite(this->_CHEN_pin, LOW); // LOW to Enable charging
     uint8_t r = readRegister(REG_ICCTRL2);
     r &= ~CHARGER_DISABLE_MASK; // 1b0 = Charge enabled if /CE pin is low
     return writeRegister(REG_ICCTRL2, r);
 }
 bool bq25155::DisableCharge() {
+    digitalWrite(this->_CHEN_pin, HIGH); // HIGH to Disable charging
     uint8_t r = readRegister(REG_ICCTRL2);
     r |= CHARGER_DISABLE_MASK; // 1b1 = Charge disabled
     return writeRegister(REG_ICCTRL2, r);
