@@ -885,7 +885,7 @@ public:
     bool getADCConvStart();
     bool NoADCConv();
     bool InitADCManualMeas();
-    bool getADCConvSpeed();
+    uint8_t getADCConvSpeed();
     bool setADCSpeedTo24ms();
     bool setADCSpeedTo12ms();
     bool setADCSpeedTo6ms();
@@ -903,11 +903,11 @@ public:
     // ADC readings
     uint16_t readVIN(uint8_t Vdecims);
     uint16_t readPMID(uint8_t Vdecims);
-    uint16_t readIIN(uint8_t Vdecims);
+    uint32_t readIIN(uint8_t Vdecims);
     uint16_t readVBAT(uint8_t Vdecims);
     uint16_t readTS(uint8_t Vdecims);
     uint16_t readADCIN(uint8_t Vdecims);
-    uint16_t readICHG(uint8_t Vdecims);
+    uint32_t readICHG(uint8_t Vdecims);
     // High-level functions for convenience
     // float getVBATVoltage();
 // --- ADCALARM_COMPx Functions ---
