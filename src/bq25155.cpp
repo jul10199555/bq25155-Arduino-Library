@@ -166,7 +166,7 @@ uint32_t bq25155::GenADCIPRead(uint8_t ADC_DATA_MSB, uint8_t ADC_DATA_LSB, uint8
     // Keeps 3 implied decimal digits: 12345 > 12.345%
     uint32_t percent_scaled = ((uint32_t)ADC_Reading * 100000UL) / 52429;
 
-    return keepdecimals(percent_scaled, KeepDec);
+    return KeepDecimals(percent_scaled, KeepDec);
 }
 // --- End Helper Functions for Value Conversion ---
 
@@ -190,7 +190,7 @@ bool bq25155::is_BAT_COLD() { return (readRegister(REG_STAT_1) & TS_COLD_STAT_MA
 bool bq25155::is_BAT_COOL() { return (readRegister(REG_STAT_1) & TS_COOL_STAT_MASK) != 0; }
 bool bq25155::is_BAT_WARM() { return (readRegister(REG_STAT_1) & TS_WARM_STAT_MASK) != 0; }
 bool bq25155::is_BAT_HOT() { return (readRegister(REG_STAT_1) & TS_HOT_STAT_MASK) != 0; }
-bool bq25155::is_CHG_SUSPENDED() { return (isBAT_COLD() || isBAT_HOT()); }
+bool bq25155::is_CHG_SUSPENDED() { return (is_BAT_COLD() || is_BAT_HOT()); }
 // --- End STAT1 Register - Charger Status ---
 
 // --- Begin STAT2 Register - ADC Status ---
@@ -260,7 +260,7 @@ uint8_t bq25155::readFLAG0() {
 }
 
 // Get cached FLAG0 (not triggers a hardware read)
-uint8_t bq25155::getCachedFLAG0() const { return cachedFlag0; }
+uint8_t bq25155::getCachedFLAG0() { return cachedFlag0; }
 // 1b0 = not detected, 1b1 = operation detected
 // Triggered when charger enters Constant Voltage operation.
 bool bq25155::CHRG_CV_Flag() { return (cachedFlag0 & CHRG_CV_FLAG_MASK) != 0; }
@@ -286,7 +286,7 @@ uint8_t bq25155::readFLAG1() {
 }
 
 // Get cached FLAG1 (not triggers a hardware read)
-uint8_t bq25155::getCachedFLAG1() const { return cachedFlag1; }
+uint8_t bq25155::getCachedFLAG1() { return cachedFlag1; }
 // 1b0 = no condition detected, 1b1 = condition detected
 // Triggered when VIN > VOVP.
 bool bq25155::VIN_OVP_Flag() { return (cachedFlag1 & VIN_OVP_FAULT_FLAG_MASK) != 0; }
@@ -313,7 +313,7 @@ uint8_t bq25155::readFLAG2() {
 }
 
 // Get cached FLAG2 (not triggers a hardware read)
-uint8_t bq25155::getCachedFLAG2() const { return cachedFlag2; }
+uint8_t bq25155::getCachedFLAG2() { return cachedFlag2; }
 // 1b0 = No crossing detected, 1b1 = measurement crossed condition set
 // Triggered when ADC conversion is completed.
 bool bq25155::ADC_READY_Flag() { return (cachedFlag2 & ADC_READY_FLAG_MASK) != 0; }
@@ -336,7 +336,7 @@ uint8_t bq25155::readFLAG3() {
 }
 
 // Get cached FLAG3 (not triggers a hardware read)
-uint8_t bq25155::getCachedFLAG3() const { return cachedFlag3;}
+uint8_t bq25155::getCachedFLAG3() { return cachedFlag3;}
 // 1b0 = Timer not expired, 1b1 = Timer expired
 // Triggered when I2C watchdog timer expires.
 bool bq25155::WD_FAULT_Flag() { return (cachedFlag3 & WD_FAULT_FLAG_MASK) != 0; }
@@ -622,7 +622,7 @@ uint32_t bq25155::getPrechargeCurrent() {
     return current_uA;
 }
 
-bool bq25155::setPrechargeCurrent(uint32_t current_uA) {
+bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
     uint8_t IPCHGbits = readRegister(REG_PCHRGCTRL);
     uint8_t Ibits = 0;
 

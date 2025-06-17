@@ -607,9 +607,9 @@ public:
     bool is_TS_OPEN();
 
     // --- FLAGx Functions ---
-    bool ClearAllFlags();
-    bool readAllFLAGS();
-    bool FaultsDetected(uint8_t* faultsOut);
+    void ClearAllFlags();
+    void readAllFLAGS();
+    void FaultsDetected(uint8_t* faultsOut);
     
     // --- FLAG0 Functions ---
     uint8_t readFLAG0();
@@ -718,7 +718,7 @@ public:
     bool setChargeCurrent(uint32_t current_uA);
 // --- Pre-Charging Current Functions ---
     uint32_t getPrechargeCurrent();
-    bool setPrechargeCurrent(uint32_t current_uA);
+    bool setPreChargeCurrent(uint32_t current_uA);
 // --- Termination Current Functions ---
     uint8_t getITERM();
     bool setITERM(uint8_t percent);
