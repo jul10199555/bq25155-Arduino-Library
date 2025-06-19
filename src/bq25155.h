@@ -570,10 +570,10 @@ enum bqChargeStatus {
     BQ_UNKNOWN_STATUS
 };
 
-class bq25155 {
+class BQ25155 {
 public:
-    bq25155();
-    bq25155(TwoWire *wire, uint8_t address = bq25155_ADDR);
+    BQ25155();
+    BQ25155(TwoWire *wire, uint8_t address = bq25155_ADDR);
 
     // begin I2C Communication, and initial settings for configuration pins
     bool begin(uint8_t CHEN_pin = 2, uint8_t INT_pin = 5, uint8_t LPM_pin = 20);

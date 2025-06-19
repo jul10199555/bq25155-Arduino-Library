@@ -6,7 +6,7 @@
 # Class names or global vars	(KEYWORD1)  [Orange]
 ###########################################
 
-bq25155							KEYWORD1
+BQ25155							KEYWORD1
 
 ###########################################
 # Methods and Functions			(KEYWORD2)  [Brown]
@@ -369,11 +369,11 @@ getDeviceID						KEYWORD2
 getDeviceIDString				KEYWORD2
 
 ###########################################
-# Constants & special keywords  (KEYWORD3)  [Teal/Blue]
+# Literals like true or false   (KEYWORD3)  [Teal/Blue]
 ###########################################
 
 ###########################################
-# Literals like true or false	(LITERAL1)  [Teal/Blue]
+# Constants & special keywords  (LITERAL1)  [Teal/Blue]
 ###########################################
 bq25155_ADDR					LITERAL1
 

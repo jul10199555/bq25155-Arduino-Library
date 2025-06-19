@@ -26,7 +26,7 @@
 // LP is pulled low internally with 900-kΩ resistor.
 // This pin has no effect when VIN is present
 
-bq25155 charger;
+BQ25155 charger;
 
 void setup() {
   Serial.begin(115200);
