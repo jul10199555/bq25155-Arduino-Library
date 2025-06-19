@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include "bq25155.h"
+#include "BQ25155.h"
 
 // CHEN pin
 #define BQ_CHEN     2
