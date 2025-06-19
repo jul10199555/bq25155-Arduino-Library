@@ -3,7 +3,7 @@
 ###########################################
 
 ###########################################
-# Class names or global vars	(KEYWORD1)  [Orange]
+# Class names or datatypes	(KEYWORD1)  [Orange]
 ###########################################
 
 BQ25155	KEYWORD1
@@ -11,7 +11,7 @@ BQ25155	KEYWORD1
 ###########################################
 # Methods and Functions			(KEYWORD2)  [Brown]
 ###########################################
-		
+
 begin	KEYWORD2
 
 initCHG	KEYWORD2
@@ -373,8 +373,9 @@ getDeviceIDString	KEYWORD2
 ###########################################
 
 ###########################################
-# Constants & special keywords  (LITERAL1)  [Teal/Blue]
+# Constants & special words  (LITERAL1)  [Teal/Blue]
 ###########################################
+
 bq25155_ADDR	LITERAL1
 
 REG_STAT_0	LITERAL1
