@@ -74,5 +74,5 @@ void loop() {
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
 
-[rel-ver]: https://img.shields.io/badge/-v1.0.0-green
+[rel-ver]: https://img.shields.io/badge/-v1.0.3-green
 [release]: https://github.com/jul10199555/bq25155-Arduino-Library/releases
