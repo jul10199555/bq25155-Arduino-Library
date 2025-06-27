@@ -61,7 +61,7 @@ bq25155 charger;
 void setup() {
     Serial.begin(115200);
     if (charger.begin(2, 3, 4)) {
-        Serial.println("BQ25155 OK");
+        Serial.println("bq25155 OK");
         charger.setChgSafetyTimerto3h();
     }
 }

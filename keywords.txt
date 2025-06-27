@@ -6,7 +6,7 @@
 # Class names or datatypes	(KEYWORD1)  [Orange]
 ###########################################
 
-BQ25155	KEYWORD1
+bq25155	KEYWORD1
 
 ###########################################
 # Methods and Functions			(KEYWORD2)  [Brown]

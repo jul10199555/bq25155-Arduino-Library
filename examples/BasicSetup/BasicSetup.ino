@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include "BQ25155.h"
+#include "bq25155.h"
 
 // CHEN pin
 #define BQ_CHEN     2
@@ -26,7 +26,7 @@
 // LP is pulled low internally with 900-kΩ resistor.
 // This pin has no effect when VIN is present
 
-BQ25155 charger;
+bq25155 charger;
 
 void setup() {
   Serial.begin(115200);

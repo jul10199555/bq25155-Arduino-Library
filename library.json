@@ -1,5 +1,5 @@
 {
-    "name": "BQ25155",
+    "name": "bq25155",
     "keywords": "i2c, wire, battery management system, battery charging, bq25155",
     "description": "Library for bq25155 Single Cell battery Charger",
     "repository": {
