@@ -524,7 +524,7 @@
 // TS_FASTCHGCTRL Register
 #define REG_TS_FASTCHGCTRL         (0x61) // [R/W]: TS Charge Control
 // Bitfield Masks
-#define ADCALARM_COMP2_M_DEF       (0x34) // 8b00111000
+#define TS_FASTCHGCTRL_DEF         (0x34) // 8b00110100
 
 #define TS_VBAT_REG_MASK           (0x70) // b6-4: Reduced target battery voltage during Warm
 #define TS_ICHRG_MASK              (0x07) // b2-0: Fast charge current when decreased by TS function
