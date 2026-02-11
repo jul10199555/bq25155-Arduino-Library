@@ -1,57 +1,50 @@
 <a id="readme-top"></a>
-# bq25155 Arduino Library #
+# bq25155 Arduino Library
 
 [![Version Badge][rel-ver]][release]
 [![License: MIT][lic-shield]][license]
 
-A robust and fully-featured Arduino library for interfacing with the **Texas Instruments [bq25155](https://www.ti.com/product/BQ25155)** battery charger IC via I2C.  
-Built with embedded safety in mind, this library offers full control over all registers, configuration of charging parameters, real-time monitoring, and low-power mode operation.
+Arduino library for the **Texas Instruments [bq25155](https://www.ti.com/product/BQ25155)** battery charger and power-path IC (I2C).
+This library provides register-level access plus convenience functions for charge configuration,
+status/fault monitoring, ADC reads, and low-power control.
 
-Supports full register-level access, interrupt masking, and safe flag reading/caching.
+## Features
 
-## ✨ Features ##
+- I2C control with LPM pin handling (access even when VIN is not present)
+- Full access to configuration/status/flag/mask registers
+- Cached FLAGx reads (clear-on-read) for safe fault handling
+- Charge configuration:
+  - VBAT regulation voltage (3.6 V to 4.6 V, 10 mV steps)
+  - Fast charge and pre-charge current
+  - Termination current (1% to 31% of ICHG)
+- Input current limit (50 mA to 600 mA)
+- Safety timer (3 h, 6 h, 12 h, or disabled)
+- ADC reads for VIN/PMID/VBAT/TS/ADCIN/IIN/ICHG
+- LDO or Load Switch control (0.6 V to 3.7 V, 100 mV steps)
 
-- 📡 I2C communication with smart **LPM pin toggling** (VIN-independent)
-- 🔁 Full read/write access to **all configuration registers**
-- 💾 **Caching support** for one-time-read FLAGx registers
-- 🧪 Detect charger and battery faults
-- 📦 Fully modular and non-blocking
-- 🔋 Read internal ADCs
-- ⚙️ **Charge settings:**
-	- Target voltage (3600–4600 mV)
-	- Fast charge and pre-charge current (1.25–500 mA)
-	- Termination current (1–31%)
-- 🔌 **Input Current Limits** (50 mA–600 mA)
-- ⏱️ **Safety Timers:**
-	- 1.5 h, 3 h, 6 h, 12 h
-	- or **disabled**
-- ❌ **Disable or enable termination detection**
-- 📉 **Under-voltage lockout (UVLO) thresholds**
-- 🔒 **Interrupt masking (MASK0–MASK3)** for selective notifications
-- 🔎 **Monitoring and Fault Detection**
-	- 🧪 Read real-time charger status and fault flags:
-		- FLAG0 to FLAG3, with per-bit cached status
-	- 📈 Read **internal ADCs** for VBAT, VBUS, TS, and system status
-	- 🔥 Thermal and safety fault detection
-- 💤 LPM (Low Power Mode) pin handling for communication without VIN
+## Important semantics
 
-## Getting Started ## 
+- Safety timer: the hardware supports 3/6/12 hours (or disabled). The 2x slow mode only
+  applies outside CC/CV regulation, so effective time can be longer than the base setting.
+- MR reset warning helper: `setRstWarnTimerms(ms)` chooses the closest warning offset based
+  on the current HW reset timer (MR_HW_RESET).
 
-### Dependencies ###
+## Getting Started
 
-- Arduino Environment
-- I2C (`Wire`)
-- Tested with a nRF52840
+### Dependencies
 
-### Installation ###
+- Arduino core
+- Wire (I2C)
 
-Clone or download this repository and place it in your Arduino `libraries/` folder.
+### Installation
+
+Clone this repository into your Arduino `libraries/` folder.
 
 ```bash
 git clone https://github.com/jul10199555/bq25155-Arduino-Library.git
 ```
 
-### Example ###
+### Basic Example
 
 ```cpp
 #include "bq25155.h"
@@ -60,9 +53,9 @@ bq25155 charger;
 
 void setup() {
     Serial.begin(115200);
-    if (charger.begin(2, 3, 4)) {
-        Serial.println("bq25155 OK");
-        charger.setChgSafetyTimerto3h();
+    if (charger.begin(2, 5, 20)) {
+        // Configure charger: 4.2 V, 100 mA, 3 h safety timer
+        charger.initCHG(4200, true, 100000, 25000, 150, 3);
     }
 }
 
@@ -70,6 +63,15 @@ void loop() {
     delay(1000);
 }
 ```
+
+## Examples
+
+- `examples/BasicSetup` - initialize the device and apply a charge profile
+- `examples/BasicUsage` - read basic status and voltage ADCs
+- `examples/StatusAndFaults` - flag caching and fault/status decoding
+- `examples/AdcMonitoring` - full ADC channel reads
+- `examples/PowerAndLdo` - LDO/load switch control
+- `examples/ThermistorAndTS` - TS thresholds and JEITA behavior
 
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE

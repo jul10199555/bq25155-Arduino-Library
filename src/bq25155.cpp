@@ -14,6 +14,8 @@
 
 #include "bq25155.h"
 
+using namespace bq25155_const;
+
 bq25155::bq25155() : _i2cPort(&Wire), _i2cAddress(bq25155_ADDR) {}
 bq25155::bq25155(TwoWire *wire, uint8_t address) : _i2cPort(wire), _i2cAddress(address) {}
 
@@ -50,44 +52,58 @@ bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin) {
 bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent_uA, uint32_t PCHGCurrent_uA, 
                       uint16_t inputCurrentLimit_mA, uint8_t ChgSftyTimer_hours) {
     // --- Apply Settings (using new register mappings) ---
-    if(!setChargeVoltage(BATVoltage_mV)) { return false; }
-    if(En_FSCHG)
-        { if(!EnableFastCharge()) { return false; } }
-    else
-        { if(!DisableFastCharge()) { return false; } }
-    if(!setChargeCurrent(CHGCurrent_uA)) { return false; }
-    if(!setPreChargeCurrent(PCHGCurrent_uA)) { return false; }
+    if (!setChargeVoltage(BATVoltage_mV)) { return false; }
+    if (En_FSCHG) {
+        if (!EnableFastCharge()) { return false; }
+    } else {
+        if (!DisableFastCharge()) { return false; }
+    }
+    if (!setChargeCurrent(CHGCurrent_uA)) { return false; }
+    if (!setPreChargeCurrent(PCHGCurrent_uA)) { return false; }
 
-    if(inputCurrentLimit_mA < 75)
-        setILIMto50mA();
-    else if(inputCurrentLimit_mA < 125)
-        setILIMto100mA();
-    else if(inputCurrentLimit_mA < 175)
-        setILIMto150mA();
-    else if(inputCurrentLimit_mA < 250)
-        setILIMto200mA();
-    else if(inputCurrentLimit_mA < 350)
-        setILIMto300mA();
-    else if(inputCurrentLimit_mA < 450)
-        setILIMto400mA();
-    else if(inputCurrentLimit_mA < 550)
-        setILIMto500mA();
-    else if(inputCurrentLimit_mA < 650)
-        setILIMto600mA();
-    else
-        setILIMto150mA(); // default suggested option for small batteries
+    bool ok = false;
+    if (inputCurrentLimit_mA < 75) {
+        ok = setILIMto50mA();
+    } else if (inputCurrentLimit_mA < 125) {
+        ok = setILIMto100mA();
+    } else if (inputCurrentLimit_mA < 175) {
+        ok = setILIMto150mA();
+    } else if (inputCurrentLimit_mA < 250) {
+        ok = setILIMto200mA();
+    } else if (inputCurrentLimit_mA < 350) {
+        ok = setILIMto300mA();
+    } else if (inputCurrentLimit_mA < 450) {
+        ok = setILIMto400mA();
+    } else if (inputCurrentLimit_mA < 550) {
+        ok = setILIMto500mA();
+    } else if (inputCurrentLimit_mA < 650) {
+        ok = setILIMto600mA();
+    } else {
+        ok = setILIMto150mA(); // default suggested option for small batteries
+    }
+    if (!ok) { return false; }
 
-    if(ChgSftyTimer_hours == 0)
-        DisableChgSafetyTimer();
-    else if(ChgSftyTimer_hours < 25)
-        setChgSafetyTimerto1_5h();
-    else if(ChgSftyTimer_hours < 45)
-        setChgSafetyTimerto3h();
-    else if(ChgSftyTimer_hours < 90)
-        setChgSafetyTimerto6h();
-    else if(ChgSftyTimer_hours < 150)
-        setChgSafetyTimerto12h();
-    
+    if (ChgSftyTimer_hours == 0) {
+        if (!DisableChgSafetyTimer()) { return false; }
+    } else {
+        uint16_t hours_tenths = (uint16_t)ChgSftyTimer_hours * 10;
+        uint16_t best = 30;
+        uint16_t bestDiff = (hours_tenths > 30) ? (hours_tenths - 30) : (30 - hours_tenths);
+
+        uint16_t diff = (hours_tenths > 60) ? (hours_tenths - 60) : (60 - hours_tenths);
+        if (diff < bestDiff) { bestDiff = diff; best = 60; }
+        diff = (hours_tenths > 120) ? (hours_tenths - 120) : (120 - hours_tenths);
+        if (diff < bestDiff) { bestDiff = diff; best = 120; }
+
+        bool timerOk = false;
+        switch (best) {
+            case 30: timerOk = setChgSafetyTimerto3h(); break;
+            case 60: timerOk = setChgSafetyTimerto6h(); break;
+            default: timerOk = setChgSafetyTimerto12h(); break;
+        }
+        if (!timerOk) { return false; }
+    }
+
     return EnableCharge();
 }
 
@@ -110,31 +126,39 @@ uint8_t bq25155::readRegister(uint8_t reg) {
 
     _i2cPort->beginTransmission(_i2cAddress);
     _i2cPort->write(reg);
-    _i2cPort->endTransmission(false); // Send restart
-    _i2cPort->requestFrom(_i2cAddress, (size_t)1);
-
-    uint8_t availablei2c = _i2cPort->available();
-    if (availablei2c){
-        uint8_t valuei2c = _i2cPort->read();
+    uint8_t txStatus = _i2cPort->endTransmission(false); // Send restart
+    if (txStatus != 0) {
         digitalWrite(this->_LPM_pin, LOW); // LOW to disable I2C communication when VIN is not present.
-
-        return valuei2c;
+        return 0x00;
     }
-    
-    return 0x00; // Return 0x00 if no data or error present
+
+    uint8_t requested = _i2cPort->requestFrom(_i2cAddress, (size_t)1);
+    if (requested != 1 || !_i2cPort->available()) {
+        digitalWrite(this->_LPM_pin, LOW); // LOW to disable I2C communication when VIN is not present.
+        return 0x00;
+    }
+
+    uint8_t valuei2c = _i2cPort->read();
+    digitalWrite(this->_LPM_pin, LOW); // LOW to disable I2C communication when VIN is not present.
+
+    return valuei2c;
 }
+
 
 // --- Begin Helper Functions for Value Conversion ---
 // Reads 16-bit values (MSB and LSB)
 uint16_t bq25155::readRaw16BitRegister(uint8_t msb_reg, uint8_t lsb_reg) {
     uint8_t msb = readRegister(msb_reg);
     uint8_t lsb = readRegister(lsb_reg);
-    // The 12-bit ADC result is left-justified in a 16-bit register.
+    // The ADC reports a 16-bit measurement.
     return ((uint16_t)msb << 8) | lsb;
 }
 
+
 uint16_t bq25155::KeepDecimals(uint32_t value, uint8_t digits) {
-    if (digits == 0) return 0;
+    if (digits == 0) {
+        return (value > MAX16BIT) ? MAX16BIT : (uint16_t)value;
+    }
 
     if (digits > 5) digits = 5;
 
@@ -144,44 +168,70 @@ uint16_t bq25155::KeepDecimals(uint32_t value, uint8_t digits) {
     }
 
     uint32_t rounded = (value / factor) * factor;
-    if (rounded > 65534) return 65535;
+    if (rounded > MAX16BIT) return MAX16BIT;
 
     return (uint16_t)rounded;
 }
 
+
 uint16_t bq25155::GenADCVRead(uint8_t ADC_DATA_MSB, uint8_t ADC_DATA_LSB, uint8_t KeepDec, bool VRef) {
     uint16_t ADC_Reading = readRaw16BitRegister(ADC_DATA_MSB, ADC_DATA_LSB);
+    // Datasheet: ADC resolution is 12-bit at 24/12 ms, 10-bit at 6/3 ms.
+    uint8_t adcSpeed = getADCConvSpeed();
+    if (adcSpeed >= 2) {
+        ADC_Reading &= 0xFFC0; // 10-bit, left aligned in 16-bit (keep top 10 bits)
+    } else {
+        ADC_Reading &= 0xFFF0; // 12-bit, left aligned in 16-bit (keep top 12 bits)
+    }
     
     uint16_t scale = (VRef ? 6000 : 1200);
 
-    uint32_t mVolts = ((uint32_t)ADC_Reading * scale) / MAX16BIT;
+    uint32_t mVolts = ((uint32_t)ADC_Reading * scale) / 65536UL;
 
     return KeepDecimals(mVolts, KeepDec);
 }
 
+
 uint32_t bq25155::GenADCIRead(uint8_t ADC_DATA_MSB, uint8_t ADC_DATA_LSB, uint8_t KeepDec) {
     // Needs implementation: IIN reading only valid when VIN > VUVLO and VIN < VOVP
     uint16_t ADC_Reading = readRaw16BitRegister(ADC_DATA_MSB, ADC_DATA_LSB);
+    // Datasheet: ADC resolution is 12-bit at 24/12 ms, 10-bit at 6/3 ms.
+    uint8_t adcSpeed = getADCConvSpeed();
+    if (adcSpeed >= 2) {
+        ADC_Reading &= 0xFFC0; // 10-bit, left aligned in 16-bit (keep top 10 bits)
+    } else {
+        ADC_Reading &= 0xFFF0; // 12-bit, left aligned in 16-bit (keep top 12 bits)
+    }
 
     uint32_t scale = (getILIM() > 2) ? 750000UL : 375000UL;
 
-    uint32_t uAmps = ((uint32_t)ADC_Reading * scale) / MAX16BIT;
+    uint32_t uAmps = ((uint32_t)ADC_Reading * scale) / 65536UL;
 
     return KeepDecimals(uAmps, KeepDec);
 }
+
 
 uint32_t bq25155::GenADCIPRead(uint8_t ADC_DATA_MSB, uint8_t ADC_DATA_LSB, uint8_t KeepDec) {
     // Needs implementation: Where ICHARGE is the charge current setting.
     // Note that if the device is in pre-charge or in the TS COLD region,
     // ICHARGE will be the current set by the IPRECHRG and TS_ICHRG bits respectively
     uint16_t ADC_Reading = readRaw16BitRegister(ADC_DATA_MSB, ADC_DATA_LSB);
+    // Datasheet: ADC resolution is 12-bit at 24/12 ms, 10-bit at 6/3 ms.
+    uint8_t adcSpeed = getADCConvSpeed();
+    if (adcSpeed >= 2) {
+        ADC_Reading &= 0xFFC0; // 10-bit, left aligned in 16-bit (keep top 10 bits)
+    } else {
+        ADC_Reading &= 0xFFF0; // 12-bit, left aligned in 16-bit (keep top 12 bits)
+    }
 
-    // Scale: 100% / (0.8 × 65536) ≈ 100000 / 52429
+    // Scale: 100% / (0.8 x 65536) ~ 100000 / 52429
     // Keeps 3 implied decimal digits: 12345 > 12.345%
-    uint32_t percent_scaled = ((uint32_t)ADC_Reading * 100000UL) / 52429;
+    uint32_t percent_scaled = ((uint32_t)ADC_Reading * 100000UL) / 52429UL;
+    if (percent_scaled > 100000UL) percent_scaled = 100000UL;
 
     return KeepDecimals(percent_scaled, KeepDec);
 }
+
 // --- End Helper Functions for Value Conversion ---
 
 // --- STATUS Registers ---
@@ -578,12 +628,12 @@ uint32_t bq25155::getChargeCurrent() {
     uint32_t current_uA = 0;
 
     if (isFastChargeEnabled()) {
-        // 500,000 µA max charge current = 200 * 2500
+        // 500,000 uA max charge current = 200 * 2500
         current_uA = ICHGbits * 2500;
         if (current_uA > 500000)
             current_uA = 500000;
     } else {
-        // 318,750 µA max charge current = 255 * 1250
+        // 318,750 uA max charge current = 255 * 1250
         current_uA = ICHGbits * 1250;
         if (current_uA > 318750)
             current_uA = 318750;
@@ -596,21 +646,18 @@ bool bq25155::setChargeCurrent(uint32_t current_uA) {
     uint8_t Ibits = 0;
 
     if (isFastChargeEnabled()) {
-        // 500,000 µA max charge current = 200 * 2500
+        // 500,000 uA max charge current = 200 * 2500
         if (current_uA >= 500000)
             Ibits = 200;
         else
             Ibits = current_uA / 2500;
     } else {
-        // 318,750 µA max charge current = 255 * 1250
+        // 318,750 uA max charge current = 255 * 1250
         if (current_uA >= 318750)
             Ibits = 255;
         else
             Ibits = current_uA / 1250;
     }
-    
-    // idk what happens if 0
-    if (Ibits < 1) Ibits = ICHG_CTRL_DEF;
 
     return writeRegister(REG_ICHG_CTRL, Ibits);
 }
@@ -622,12 +669,12 @@ uint32_t bq25155::getPrechargeCurrent() {
     uint32_t current_uA = 0;
 
     if (isFastChargeEnabled()) {
-        // 77,500 µA max pre-charge current = 31 * 2500
+        // 77,500 uA max pre-charge current = 31 * 2500
         current_uA = IPCHGbits * 2500;
         if (current_uA > 77500)
             current_uA = 77500;
     } else {
-        // 38,750 µA max pre-charge current = 31 * 1250
+        // 38,750 uA max pre-charge current = 31 * 1250
         current_uA = IPCHGbits * 1250;
         if (current_uA > 38750)
             current_uA = 38750;
@@ -641,21 +688,18 @@ bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
     uint8_t Ibits = 0;
 
     if (isFastChargeEnabled()) {
-        // 77,500 µA max pre-charge current = 31 * 2500
+        // 77,500 uA max pre-charge current = 31 * 2500
         if (current_uA >= 77500)
             Ibits = 31;
         else
             Ibits = current_uA / 2500;
     } else {
-        // 38,750 µA max pre-charge current = 31 * 1250
+        // 38,750 uA max pre-charge current = 31 * 1250
         if (current_uA >= 38750)
             Ibits = 31;
         else
             Ibits = current_uA / 1250;
     }
-    
-    // idk what happens if 0
-    if (Ibits < 1) Ibits = IPRECHG_DEF;
 
     IPCHGbits &= ~IPRECHG_MASK; // Clear b4:0
     IPCHGbits |= Ibits; // Set new bits
@@ -711,14 +755,14 @@ uint8_t bq25155::getIBATOCP() { return (readRegister(REG_BUVLO) & IBAT_OCP_ILIM_
 bool bq25155::setIBATOCPto1200mA() {
     uint8_t r = readRegister(REG_BUVLO);
     
-    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4–3
+    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4-3
     
     return writeRegister(REG_BUVLO, r);
 }
 bool bq25155::setIBATOCPto1500mA() {
     uint8_t r = readRegister(REG_BUVLO);
     
-    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4–3
+    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4-3
     r |= (IBAT_OCP_1500MA << 3);
     
     return writeRegister(REG_BUVLO, r);
@@ -726,7 +770,7 @@ bool bq25155::setIBATOCPto1500mA() {
 bool bq25155::DisableIBATOCP() {
     uint8_t r = readRegister(REG_BUVLO);
     
-    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4–3
+    r &= ~IBAT_OCP_ILIM_MASK; // Clear bits 4-3
     r |= (IBAT_OCP_DIS << 3);
     
     return writeRegister(REG_BUVLO, r);
@@ -821,7 +865,6 @@ bool bq25155::set2xSafetyTimer() {
 // SAFETY_TIMER_LIMIT (bits 2:1)
 uint8_t bq25155::getChgSafetyTimer() {
     uint8_t reg = readRegister(REG_CHARGERCTRL0);
-    bool is2x = (reg & SFT_2XTMR_EN_MASK) != 0;
     uint8_t timerCode = (reg & SAFETY_TIMER_LIMIT_MASK) >> 1;
 
     uint8_t baseTenths = 0;
@@ -833,8 +876,8 @@ uint8_t bq25155::getChgSafetyTimer() {
         case SAFETY_TIMER_LIMIT_DIS: return 0; // Disabled
         default: return 0;
     }
-    // Returns timer in tenths of an hour (e.g., 15 = 1.5h, 30 = 3h)
-    return is2x ? (baseTenths / 2) : baseTenths;
+    // Returns base timer in tenths of an hour (e.g., 30 = 3h)
+    return baseTenths;
 }
 bool bq25155::setChgSafetyTimer(uint8_t code) {
     if (code > 3) return false;
@@ -844,7 +887,6 @@ bool bq25155::setChgSafetyTimer(uint8_t code) {
     r |= code;
     return writeRegister(REG_CHARGERCTRL0, r);
 }
-bool bq25155::setChgSafetyTimerto1_5h() { return set2xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_3H); }
 bool bq25155::setChgSafetyTimerto3h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_3H); }
 bool bq25155::setChgSafetyTimerto6h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_6H); }
 bool bq25155::setChgSafetyTimerto12h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_12H); }
@@ -998,13 +1040,37 @@ bool bq25155::isLDOEnabled() { return (readRegister(REG_LDOCTRL) & LDO_SWITCH_CO
 bool bq25155::isLSEnabled() { return (readRegister(REG_LDOCTRL) & LDO_SWITCH_CONFG_MASK) != 0; }
 bool bq25155::EnableLDO() {
     uint8_t r = readRegister(REG_LDOCTRL);
+    bool wasEnabled = (r & EN_LS_LDO_MASK) != 0;
+    if (wasEnabled) {
+        r &= ~EN_LS_LDO_MASK;
+        if (!writeRegister(REG_LDOCTRL, r)) return false;
+    }
+
     r &= ~LDO_SWITCH_CONFG_MASK; // 1b0 = LDO
-    return writeRegister(REG_LDOCTRL, r);
+    if (!writeRegister(REG_LDOCTRL, r)) return false;
+
+    if (wasEnabled) {
+        r |= EN_LS_LDO_MASK;
+        return writeRegister(REG_LDOCTRL, r);
+    }
+    return true;
 }
 bool bq25155::EnableLS() {
     uint8_t r = readRegister(REG_LDOCTRL);
+    bool wasEnabled = (r & EN_LS_LDO_MASK) != 0;
+    if (wasEnabled) {
+        r &= ~EN_LS_LDO_MASK;
+        if (!writeRegister(REG_LDOCTRL, r)) return false;
+    }
+
     r |= LDO_SWITCH_CONFG_MASK; // 1b1 = Load Switch
-    return writeRegister(REG_LDOCTRL, r);
+    if (!writeRegister(REG_LDOCTRL, r)) return false;
+
+    if (wasEnabled) {
+        r |= EN_LS_LDO_MASK;
+        return writeRegister(REG_LDOCTRL, r);
+    }
+    return true;
 }
 // --- End LDOCTRL Settings - LDO / Load Switch Configuration ---
 
@@ -1058,19 +1124,32 @@ bool bq25155::setRstWarnTimer(uint8_t code) {
     return writeRegister(REG_MRCTRL, r);
 }
 bool bq25155::setRstWarnTimerms(uint16_t mrst_ms) {
-    uint8_t code = 0;
-    if (mrst_ms < 750)
-        code = MR_WARN_HW_0_5S;
-    else if (mrst_ms < 1250)
-        code = MR_WARN_HW_1_0S;
-    else if (mrst_ms < 1750)
-        code = MR_WARN_HW_1_5S;
-    else if (mrst_ms < 2250)
-        code = MR_WARN_HW_2_0S;
-    else
-        return false;
+    // mrst_ms is the desired time (ms) from /MR going low to warning.
+    // Datasheet defines warning as tHW_RESET minus {0.5,1.0,1.5,2.0}s.
+    uint16_t hw_ms = 0;
+    switch (getHWRstTimer()) {
+        case MR_HW_RESET_4S:  hw_ms = 4000; break;
+        case MR_HW_RESET_8S:  hw_ms = 8000; break;
+        case MR_HW_RESET_10S: hw_ms = 10000; break;
+        case MR_HW_RESET_14S: hw_ms = 14000; break;
+        default: return false;
+    }
 
-    return setRstWarnTimer(code);
+    const uint16_t offsets_ms[4] = {500, 1000, 1500, 2000};
+    uint8_t bestCode = MR_WARN_HW_0_5S;
+    uint16_t bestDiff = 0xFFFF;
+
+    for (uint8_t i = 0; i < 4; i++) {
+        if (hw_ms <= offsets_ms[i]) continue;
+        uint16_t warn_ms = hw_ms - offsets_ms[i];
+        uint16_t diff = (warn_ms > mrst_ms) ? (warn_ms - mrst_ms) : (mrst_ms - warn_ms);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            bestCode = i;
+        }
+    }
+
+    return setRstWarnTimer(bestCode);
 }
 
 uint8_t bq25155::getHWRstTimer() { return (readRegister(REG_MRCTRL) & MR_HW_RESET_MASK) >> 1; }
@@ -1190,7 +1269,7 @@ bool bq25155::setADCINasGP() {
 }
 bool bq25155::setADCINasNTC() {
     uint8_t r = readRegister(REG_ICCTRL1);
-    r |= ADCIN_MODE_MASK; // 1b1 = 10K NTC ADC input (80 µA biasing)
+    r |= ADCIN_MODE_MASK; // 1b1 = 10K NTC ADC input (80 uA biasing)
     return writeRegister(REG_ICCTRL1, r);
 }
 
@@ -1359,7 +1438,7 @@ bool bq25155::ADC1mSamp() {
 }
 
 // ADC Conversion Start Trigger
-bool bq25155::getADCConvStart() { return (readRegister(REG_ADCCTRL0) & ADC_CONV_START_MASK) == 0; }
+bool bq25155::getADCConvStart() { return (readRegister(REG_ADCCTRL0) & ADC_CONV_START_MASK) != 0; }
 bool bq25155::NoADCConv() {
     uint8_t r = readRegister(REG_ADCCTRL0);
     r &= ~ADC_CONV_START_MASK; // 1b0 = No ADC conversion
@@ -1799,7 +1878,7 @@ String bq25155::getDeviceIDString() {
 // --- End DEVICE_ID ---
 
 /** // WIP
-bqChargeStatus bq25155::getChargeStatus() {
+ChargeStatus bq25155::getChargeStatus() {
     uint8_t chargeStatBits = readRegister(REG_STAT_0);
 
     if ((chargeStatBits & ) == STAT_CHG_NOT_CHARGING) return BQ_NOT_CHARGING;
