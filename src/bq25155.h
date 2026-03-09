@@ -2,9 +2,9 @@
  * @brief         Header file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.3
+ * @version       1.0.6
  * @creation date 2025-06-16
- * @updated date  2025-06-26
+ * @updated date  2026-03-09
  * @author        jul10199555
  * 
  * Repo:

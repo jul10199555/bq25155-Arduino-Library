@@ -2,9 +2,9 @@
  * @brief         CPP file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.3
+ * @version       1.0.6
  * @creation date 2025-06-16
- * @updated date  2025-06-26
+ * @updated date  2026-03-09
  * @author        jul10199555
  * 
  * Repo:
@@ -58,8 +58,6 @@ bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent
     } else {
         if (!DisableFastCharge()) { return false; }
     }
-    if (!setChargeCurrent(CHGCurrent_uA)) { return false; }
-    if (!setPreChargeCurrent(PCHGCurrent_uA)) { return false; }
 
     bool ok = false;
     if (inputCurrentLimit_mA < 75) {
@@ -82,6 +80,8 @@ bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent
         ok = setILIMto150mA(); // default suggested option for small batteries
     }
     if (!ok) { return false; }
+    if (!setChargeCurrent(CHGCurrent_uA)) { return false; }
+    if (!setPreChargeCurrent(PCHGCurrent_uA)) { return false; }
 
     if (ChgSftyTimer_hours == 0) {
         if (!DisableChgSafetyTimer()) { return false; }
@@ -643,9 +643,30 @@ uint32_t bq25155::getChargeCurrent() {
 }
 
 bool bq25155::setChargeCurrent(uint32_t current_uA) {
+    const bool fastCharge = isFastChargeEnabled();
+    const uint32_t currentStep_uA = fastCharge ? 2500UL : 1250UL;
+
+    // Keep ICHG strictly below the currently configured ILIM level.
+    uint32_t ilim_uA = 50000UL;
+    switch (getILIM()) {
+        case ILIM_50MA:  ilim_uA = 50000UL; break;
+        case ILIM_100MA: ilim_uA = 100000UL; break;
+        case ILIM_150MA: ilim_uA = 150000UL; break;
+        case ILIM_200MA: ilim_uA = 200000UL; break;
+        case ILIM_300MA: ilim_uA = 300000UL; break;
+        case ILIM_400MA: ilim_uA = 400000UL; break;
+        case ILIM_500MA: ilim_uA = 500000UL; break;
+        case ILIM_600MA: ilim_uA = 600000UL; break;
+        default: break;
+    }
+    uint32_t maxAllowed_uA = (ilim_uA > currentStep_uA) ? (ilim_uA - currentStep_uA) : 0UL;
+    if (current_uA > maxAllowed_uA) {
+        current_uA = maxAllowed_uA;
+    }
+
     uint8_t Ibits = 0;
 
-    if (isFastChargeEnabled()) {
+    if (fastCharge) {
         // 500,000 uA max charge current = 200 * 2500
         if (current_uA >= 500000)
             Ibits = 200;
@@ -659,7 +680,12 @@ bool bq25155::setChargeCurrent(uint32_t current_uA) {
             Ibits = current_uA / 1250;
     }
 
-    return writeRegister(REG_ICHG_CTRL, Ibits);
+    if (!writeRegister(REG_ICHG_CTRL, Ibits)) {
+        return false;
+    }
+
+    // Keep pre-charge current aligned with the 40%-of-ICHG cap after ICHG updates.
+    return setPreChargeCurrent(getPrechargeCurrent());
 }
 // --- End Charging Current Settings ---
 
@@ -684,6 +710,12 @@ uint32_t bq25155::getPrechargeCurrent() {
 }
 
 bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
+    // Cap pre-charge current to 40% of currently configured ICHG.
+    uint32_t maxPrecharge_uA = (getChargeCurrent() * 40UL) / 100UL;
+    if (current_uA > maxPrecharge_uA) {
+        current_uA = maxPrecharge_uA;
+    }
+
     uint8_t IPCHGbits = readRegister(REG_PCHRGCTRL);
     uint8_t Ibits = 0;
 
@@ -982,7 +1014,12 @@ bool bq25155::setILIM(uint8_t code) {
 
     r &= ~ILIM_MASK;
     r |= code;
-    return writeRegister(REG_ILIMCTRL, r);
+    if (!writeRegister(REG_ILIMCTRL, r)) {
+        return false;
+    }
+
+    // Re-apply current settings so ICHG/IPRECHG remain valid for the new ILIM.
+    return setChargeCurrent(getChargeCurrent());
 }
 bool bq25155::setILIMto50mA() { return setILIM(ILIM_50MA); }
 bool bq25155::setILIMto100mA() { return setILIM(ILIM_100MA); }
