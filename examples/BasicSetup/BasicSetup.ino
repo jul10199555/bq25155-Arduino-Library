@@ -5,6 +5,7 @@
 static constexpr uint8_t BQ_CHEN = 2;  // Charge enable pin
 static constexpr uint8_t BQ_INT  = 5;  // Interrupt pin (open-drain)
 static constexpr uint8_t BQ_LPM  = 20; // Low power mode pin
+static constexpr BatteryChemistry BQ_CHEM = LI_ION_4V2;
 
 bq25155 charger;
 
@@ -13,7 +14,7 @@ void setup() {
   while (!Serial) { delay(10); }
 
   // Initialize with control pins: CHEN, INT, LPM
-  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM)) {
+  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM)) {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
@@ -24,10 +25,10 @@ void setup() {
   // Configure charging profile
   // Safety timer request is in hours; the device supports 3, 6, 12 hours (0 disables).
   bool ok = charger.initCHG(
-    4200,     // Target charge voltage in mV
+    4400,     // Target charge voltage in mV (will clamp to chemistry max)
     true,     // Enable fast charging
-    100000,   // Charge current in uA
-    25000,    // Precharge current in uA
+    220000,   // Charge current in uA (may clamp to ILIM-safe value)
+    120000,   // Precharge current in uA (will clamp to <=40% of ICHG)
     150,      // Input current limit in mA
     3         // Safety timer request in hours
   );
@@ -40,6 +41,12 @@ void setup() {
   }
 
   Serial.println("Charger configured.");
+  Serial.print("Applied VBAT target (mV): ");
+  Serial.println(charger.getChargeVoltage());
+  Serial.print("Applied ICHG (uA): ");
+  Serial.println(charger.getChargeCurrent());
+  Serial.print("Applied IPRECHG (uA): ");
+  Serial.println(charger.getPrechargeCurrent());
 }
 
 void loop() {

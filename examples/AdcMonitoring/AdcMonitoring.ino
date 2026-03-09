@@ -5,6 +5,7 @@
 static constexpr uint8_t BQ_CHEN = 2;  // Charge enable pin
 static constexpr uint8_t BQ_INT  = 5;  // Interrupt pin (open-drain)
 static constexpr uint8_t BQ_LPM  = 20; // Low power mode pin
+static constexpr BatteryChemistry BQ_CHEM = LI_ION_4V2;
 
 bq25155 charger;
 
@@ -38,7 +39,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) { delay(10); }
 
-  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM)) {
+  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM)) {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
@@ -61,6 +62,8 @@ void setup() {
 }
 
 void loop() {
+  charger.enforceSafetyFaultPolicy();
+
   printMilli("VIN", charger.readVIN(0));
   printMilli("PMID", charger.readPMID(0));
   printMilli("VBAT", charger.readVBAT(0));

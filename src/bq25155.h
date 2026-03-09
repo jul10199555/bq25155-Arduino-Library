@@ -2,7 +2,7 @@
  * @brief         Header file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.6
+ * @version       1.0.7
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -586,8 +586,21 @@ enum class ChargeStatus : uint8_t {
     BQ_UNKNOWN_STATUS
 };
 
+enum class BatteryChemistry : uint8_t {
+    LI_ION_4V2 = 0, // 4.20 V max
+    LI_HV_4V35,     // 4.35 V max
+    LI_HV_4V4       // 4.40 V max
+};
+
 
 } // namespace bq25155_const
+
+// User-facing alias for cleaner sketches.
+using BatteryChemistry = bq25155_const::BatteryChemistry;
+// User-facing shorthand constants so sketches can pass chemistry without enum qualification.
+static constexpr BatteryChemistry LI_ION_4V2 = BatteryChemistry::LI_ION_4V2;
+static constexpr BatteryChemistry LI_HV_4V35 = BatteryChemistry::LI_HV_4V35;
+static constexpr BatteryChemistry LI_HV_4V4 = BatteryChemistry::LI_HV_4V4;
 
 class bq25155 {
 public:
@@ -595,7 +608,10 @@ public:
     bq25155(TwoWire *wire, uint8_t address = bq25155_const::bq25155_ADDR);
 
     // begin I2C Communication, and initial settings for configuration pins
-    bool begin(uint8_t CHEN_pin = 2, uint8_t INT_pin = 5, uint8_t LPM_pin = 20);
+    bool begin(uint8_t CHEN_pin = 2, uint8_t INT_pin = 5, uint8_t LPM_pin = 20,
+               BatteryChemistry chemistry = LI_ION_4V2);
+    void setBatteryChemistry(BatteryChemistry chemistry);
+    BatteryChemistry getBatteryChemistry() const;
     
     // Defaults: 100mA fast charge, 4.2V charge voltage, 150mA input limit, safety timer nearest to 4h request
     bool initCHG(uint16_t BATVoltage_mV = 4200, bool En_FSCHG = true, uint32_t CHGCurrent_uA = 100000, uint32_t PCHGCurrent_uA = 20000,
@@ -629,6 +645,7 @@ public:
     void ClearAllFlags();
     void readAllFLAGS();
     void FaultsDetected(uint8_t* faultsOut);
+    bool enforceSafetyFaultPolicy(bool *chargeDisabled = nullptr);
     
     // --- FLAG0 Functions ---
     uint8_t readFLAG0();
@@ -980,6 +997,9 @@ private:
     uint8_t _CHEN_pin = 0xFF;
     uint8_t _INT_pin  = 0xFF;
     uint8_t _LPM_pin  = 0xFF;
+    BatteryChemistry _batteryChemistry = LI_ION_4V2;
+    uint8_t _chargeReconfigDepth = 0;
+    bool _resumeChargeAfterConfig = false;
 
     // Cached copies of FLAG registers
     uint8_t cachedFlag0 = 0;
@@ -989,8 +1009,12 @@ private:
 
     // --- Low-level I2C access (for debugging or advanced use) ---
     bool writeRegister(uint8_t reg, uint8_t value);
+    bool writeRegisterVerify(uint8_t reg, uint8_t value, uint8_t verifyMask = 0xFF);
     uint8_t readRegister(uint8_t reg);
     uint16_t readRaw16BitRegister(uint8_t msb_reg, uint8_t lsb_reg);
+    uint16_t getChemistryMaxChargeVoltage_mV() const;
+    bool enterChargeReconfig();
+    bool exitChargeReconfig(bool success);
 
     // --- Helper functions for converting values to register bits and vice-versa ---
     uint16_t KeepDecimals(uint32_t value, uint8_t digits);

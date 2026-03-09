@@ -2,7 +2,7 @@
  * @brief         CPP file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.6
+ * @version       1.0.7
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -19,12 +19,13 @@ using namespace bq25155_const;
 bq25155::bq25155() : _i2cPort(&Wire), _i2cAddress(bq25155_ADDR) {}
 bq25155::bq25155(TwoWire *wire, uint8_t address) : _i2cPort(wire), _i2cAddress(address) {}
 
-bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin) {
+bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin, BatteryChemistry chemistry) {
     if (CHEN_pin == 0xFF || INT_pin == 0xFF || LPM_pin == 0xFF) { return false; }
 
     this->_CHEN_pin = CHEN_pin;
     this->_INT_pin  = INT_pin;
     this->_LPM_pin  = LPM_pin;
+    this->_batteryChemistry = chemistry;
 
     pinMode(this->_LPM_pin, OUTPUT); // Set LPM output pin
 
@@ -47,6 +48,14 @@ bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin) {
         return true;
     } else
         return false;
+}
+
+void bq25155::setBatteryChemistry(BatteryChemistry chemistry) {
+    _batteryChemistry = chemistry;
+}
+
+BatteryChemistry bq25155::getBatteryChemistry() const {
+    return _batteryChemistry;
 }
 
 bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent_uA, uint32_t PCHGCurrent_uA, 
@@ -107,6 +116,46 @@ bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent
     return EnableCharge();
 }
 
+uint16_t bq25155::getChemistryMaxChargeVoltage_mV() const {
+    switch (_batteryChemistry) {
+        case BatteryChemistry::LI_HV_4V35: return 4350;
+        case BatteryChemistry::LI_HV_4V4:  return 4400;
+        case BatteryChemistry::LI_ION_4V2:
+        default: return 4200;
+    }
+}
+
+bool bq25155::enterChargeReconfig() {
+    if (_chargeReconfigDepth == 0) {
+        _resumeChargeAfterConfig = isChargeEnabled();
+        if (_resumeChargeAfterConfig && !DisableCharge()) {
+            _resumeChargeAfterConfig = false;
+            return false;
+        }
+    }
+    _chargeReconfigDepth++;
+    return true;
+}
+
+bool bq25155::exitChargeReconfig(bool success) {
+    if (_chargeReconfigDepth == 0) {
+        return success;
+    }
+
+    _chargeReconfigDepth--;
+    if (_chargeReconfigDepth != 0) {
+        return success;
+    }
+
+    bool resumeOk = true;
+    if (_resumeChargeAfterConfig) {
+        resumeOk = EnableCharge();
+    }
+    _resumeChargeAfterConfig = false;
+
+    return success && resumeOk;
+}
+
 bool bq25155::writeRegister(uint8_t reg, uint8_t value) {
     digitalWrite(this->_LPM_pin, HIGH); // HIGH to allow I2C communication when VIN is not present
 
@@ -119,6 +168,14 @@ bool bq25155::writeRegister(uint8_t reg, uint8_t value) {
 
     // Returns true if I2C write succeeded, otherwise false 
     return (finishedi2c == 0);
+}
+
+bool bq25155::writeRegisterVerify(uint8_t reg, uint8_t value, uint8_t verifyMask) {
+    if (!writeRegister(reg, value)) {
+        return false;
+    }
+    uint8_t readBack = readRegister(reg);
+    return (((readBack ^ value) & verifyMask) == 0);
 }
 
 uint8_t bq25155::readRegister(uint8_t reg) {
@@ -314,6 +371,42 @@ void bq25155::FaultsDetected(uint8_t* faultsOut) {
                 faultsOut[i]++;
         }
     }
+}
+
+bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled) {
+    if (chargeDisabled != nullptr) {
+        *chargeDisabled = false;
+    }
+
+    readAllFLAGS();
+
+    const bool severeFlagFault =
+        VIN_OVP_Flag() ||
+        BAT_OCP_Flag() ||
+        BAT_UVLO_Flag() ||
+        TS_COLD_Flag() ||
+        TS_HOT_Flag() ||
+        VTS_OPEN_Flag() ||
+        WD_FAULT_Flag() ||
+        SAFETY_TMR_Flag() ||
+        LDO_OCP_Flag();
+
+    const bool severeStatusFault =
+        is_VIN_OVP_TRIG() ||
+        is_BAT_OCP_TRIG() ||
+        is_BAT_UVLO() ||
+        is_BAT_COLD() ||
+        is_BAT_HOT() ||
+        is_TS_OPEN();
+
+    if (!(severeFlagFault || severeStatusFault)) {
+        return true;
+    }
+
+    if (chargeDisabled != nullptr) {
+        *chargeDisabled = true;
+    }
+    return DisableCharge();
 }
 
 // --- Begin FLAG0 Register - Charger Status ---
@@ -593,6 +686,10 @@ uint16_t bq25155::getChargeVoltage() {
 
 bool bq25155::setChargeVoltage(uint16_t target_mV) {
     if (target_mV < 3600) { return false; }
+    if (!enterChargeReconfig()) { return false; }
+
+    uint16_t chemistryMax_mV = getChemistryMaxChargeVoltage_mV();
+    if (target_mV > chemistryMax_mV) { target_mV = chemistryMax_mV; }
 
     // Calculate new VBAT_REG value
     uint8_t vbat_bits = (target_mV - 3600) / 10; // VBATREG = 3.6 V + vbat_bits x 10 mV
@@ -604,21 +701,36 @@ bool bq25155::setChargeVoltage(uint16_t target_mV) {
     VBATREG &= ~VBAT_REG_MASK; // Clear bits 6:0
     VBATREG |= vbat_bits; // Set bits 6:0
 
-    return writeRegister(REG_VBAT_CTRL, VBATREG);
+    bool ok = writeRegisterVerify(REG_VBAT_CTRL, VBATREG, VBAT_REG_MASK);
+    return exitChargeReconfig(ok);
 }
 // --- End VBAT charging Register ---
 
 // --- Begin Fast Charge Settings ---
 bool bq25155::isFastChargeEnabled() { return (readRegister(REG_PCHRGCTRL) & ICHARGE_RANGE_MASK) != 0; }
 bool bq25155::DisableFastCharge() {
+    if (!enterChargeReconfig()) { return false; }
+    uint32_t chargeTarget_uA = getChargeCurrent();
+    uint32_t prechargeTarget_uA = getPrechargeCurrent();
+
     uint8_t ICHG_STEP = readRegister(REG_PCHRGCTRL); // Read PCHRGCTRL
     ICHG_STEP &= ~ICHARGE_RANGE_MASK; // 1b0 = 1.25 mA step (318.75 mA max charge current)
-    return writeRegister(REG_PCHRGCTRL, ICHG_STEP);
+    bool ok = writeRegisterVerify(REG_PCHRGCTRL, ICHG_STEP, ICHARGE_RANGE_MASK);
+    if (ok) { ok = setChargeCurrent(chargeTarget_uA); }
+    if (ok) { ok = setPreChargeCurrent(prechargeTarget_uA); }
+    return exitChargeReconfig(ok);
 }
 bool bq25155::EnableFastCharge() {
+    if (!enterChargeReconfig()) { return false; }
+    uint32_t chargeTarget_uA = getChargeCurrent();
+    uint32_t prechargeTarget_uA = getPrechargeCurrent();
+
     uint8_t ICHG_STEP = readRegister(REG_PCHRGCTRL); // Read PCHRGCTRL
     ICHG_STEP |= ICHARGE_RANGE_MASK; // 1b1 = 2.5 mA step (500 mA max charge current)
-    return writeRegister(REG_PCHRGCTRL, ICHG_STEP);
+    bool ok = writeRegisterVerify(REG_PCHRGCTRL, ICHG_STEP, ICHARGE_RANGE_MASK);
+    if (ok) { ok = setChargeCurrent(chargeTarget_uA); }
+    if (ok) { ok = setPreChargeCurrent(prechargeTarget_uA); }
+    return exitChargeReconfig(ok);
 }
 // --- End Fast Charge Settings ---
 
@@ -643,6 +755,8 @@ uint32_t bq25155::getChargeCurrent() {
 }
 
 bool bq25155::setChargeCurrent(uint32_t current_uA) {
+    if (!enterChargeReconfig()) { return false; }
+
     const bool fastCharge = isFastChargeEnabled();
     const uint32_t currentStep_uA = fastCharge ? 2500UL : 1250UL;
 
@@ -680,12 +794,12 @@ bool bq25155::setChargeCurrent(uint32_t current_uA) {
             Ibits = current_uA / 1250;
     }
 
-    if (!writeRegister(REG_ICHG_CTRL, Ibits)) {
-        return false;
+    bool ok = writeRegisterVerify(REG_ICHG_CTRL, Ibits, ICHG_CTRL_MASK);
+    if (ok) {
+        // Keep pre-charge current aligned with the 40%-of-ICHG cap after ICHG updates.
+        ok = setPreChargeCurrent(getPrechargeCurrent());
     }
-
-    // Keep pre-charge current aligned with the 40%-of-ICHG cap after ICHG updates.
-    return setPreChargeCurrent(getPrechargeCurrent());
+    return exitChargeReconfig(ok);
 }
 // --- End Charging Current Settings ---
 
@@ -710,6 +824,8 @@ uint32_t bq25155::getPrechargeCurrent() {
 }
 
 bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
+    if (!enterChargeReconfig()) { return false; }
+
     // Cap pre-charge current to 40% of currently configured ICHG.
     uint32_t maxPrecharge_uA = (getChargeCurrent() * 40UL) / 100UL;
     if (current_uA > maxPrecharge_uA) {
@@ -736,7 +852,8 @@ bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
     IPCHGbits &= ~IPRECHG_MASK; // Clear b4:0
     IPCHGbits |= Ibits; // Set new bits
 
-    return writeRegister(REG_PCHRGCTRL, IPCHGbits);
+    bool ok = writeRegisterVerify(REG_PCHRGCTRL, IPCHGbits, IPRECHG_MASK);
+    return exitChargeReconfig(ok);
 }
 // --- End Pre-Charging Current Settings ---
 
@@ -886,12 +1003,12 @@ bool bq25155::getSafetyTimerX() { return (readRegister(REG_CHARGERCTRL0) & SFT_2
 bool bq25155::set1xSafetyTimer() {
     uint8_t r = readRegister(REG_CHARGERCTRL0);
     r &= ~SFT_2XTMR_EN_MASK; // 1b0 = The timer is not slowed at any time
-    return writeRegister(REG_CHARGERCTRL0, r);
+    return writeRegisterVerify(REG_CHARGERCTRL0, r, SFT_2XTMR_EN_MASK);
 }
 bool bq25155::set2xSafetyTimer() {
     uint8_t r = readRegister(REG_CHARGERCTRL0);
     r |= SFT_2XTMR_EN_MASK; // 1b1 = The timer is slowed by 2x when in any control other than CC or CV
-    return writeRegister(REG_CHARGERCTRL0, r);
+    return writeRegisterVerify(REG_CHARGERCTRL0, r, SFT_2XTMR_EN_MASK);
 }
 
 // SAFETY_TIMER_LIMIT (bits 2:1)
@@ -917,7 +1034,7 @@ bool bq25155::setChgSafetyTimer(uint8_t code) {
     code <<= 1;
     r &= ~SAFETY_TIMER_LIMIT_MASK;
     r |= code;
-    return writeRegister(REG_CHARGERCTRL0, r);
+    return writeRegisterVerify(REG_CHARGERCTRL0, r, SAFETY_TIMER_LIMIT_MASK);
 }
 bool bq25155::setChgSafetyTimerto3h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_3H); }
 bool bq25155::setChgSafetyTimerto6h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_6H); }
@@ -1009,17 +1126,18 @@ bool bq25155::setThermalTemperature(uint8_t Temp_C) {
 uint8_t bq25155::getILIM() { return (readRegister(REG_ILIMCTRL) & ILIM_MASK); }
 bool bq25155::setILIM(uint8_t code) {
     if (code > 7) return false;
+    if (!enterChargeReconfig()) { return false; }
 
     uint8_t r = readRegister(REG_ILIMCTRL);
 
     r &= ~ILIM_MASK;
     r |= code;
-    if (!writeRegister(REG_ILIMCTRL, r)) {
-        return false;
+    bool ok = writeRegisterVerify(REG_ILIMCTRL, r, ILIM_MASK);
+    if (ok) {
+        // Re-apply current settings so ICHG/IPRECHG remain valid for the new ILIM.
+        ok = setChargeCurrent(getChargeCurrent());
     }
-
-    // Re-apply current settings so ICHG/IPRECHG remain valid for the new ILIM.
-    return setChargeCurrent(getChargeCurrent());
+    return exitChargeReconfig(ok);
 }
 bool bq25155::setILIMto50mA() { return setILIM(ILIM_50MA); }
 bool bq25155::setILIMto100mA() { return setILIM(ILIM_100MA); }

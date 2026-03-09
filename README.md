@@ -14,13 +14,14 @@ status/fault monitoring, ADC reads, and low-power control.
 - Full access to configuration/status/flag/mask registers
 - Cached FLAGx reads (clear-on-read) for safe fault handling
 - Charge configuration:
-  - VBAT regulation voltage (3.6 V to 4.6 V, 10 mV steps)
+  - VBAT regulation voltage with chemistry cap (3.6 V to chemistry max, 10 mV steps)
   - Fast charge and pre-charge current
   - Termination current (1% to 31% of ICHG)
 - Input current limit (50 mA to 600 mA)
 - Safety timer (3 h, 6 h, 12 h, or disabled)
 - ADC reads for VIN/PMID/VBAT/TS/ADCIN/IIN/ICHG
 - LDO or Load Switch control (0.6 V to 3.7 V, 100 mV steps)
+- Runtime safety helper: `enforceSafetyFaultPolicy()` disables charge on severe faults
 
 ## Important semantics
 
@@ -28,6 +29,8 @@ status/fault monitoring, ADC reads, and low-power control.
   applies outside CC/CV regulation, so effective time can be longer than the base setting.
 - MR reset warning helper: `setRstWarnTimerms(ms)` chooses the closest warning offset based
   on the current HW reset timer (MR_HW_RESET).
+- Battery chemistry is selected in `begin(...)`, and charge voltage is clamped to its maximum:
+  - `LI_ION_4V2` (4.20 V), `LI_HV_4V35` (4.35 V), `LI_HV_4V4` (4.40 V).
 
 ## Getting Started
 
@@ -53,7 +56,7 @@ bq25155 charger;
 
 void setup() {
     Serial.begin(115200);
-    if (charger.begin(2, 5, 20)) {
+    if (charger.begin(2, 5, 20, LI_ION_4V2)) {
         // Configure charger: 4.2 V, 100 mA, 3 h safety timer
         charger.initCHG(4200, true, 100000, 25000, 150, 3);
     }
@@ -72,6 +75,7 @@ void loop() {
 - `examples/AdcMonitoring` - full ADC channel reads
 - `examples/PowerAndLdo` - LDO/load switch control
 - `examples/ThermistorAndTS` - TS thresholds and JEITA behavior
+- `examples/SafetyGuards` - chemistry-based VBAT clamp, current caps, and runtime fault policy
 
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
