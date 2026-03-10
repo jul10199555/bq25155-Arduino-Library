@@ -29,14 +29,18 @@ void setup() {
   Serial.println(" found!");
 
   // Configure charging profile
-  charger.initCHG(
-    4200,     // Charge voltage in mV
-    true,     // Enable fast charge
-    150000,   // Charge current in uA
-    30000,    // Pre-charge current in uA
-    150,      // Input limit in mA
-    6         // Safety timer request in hours
-  );
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4200;
+  profile.enableFastCharge = true;
+  profile.chargeCurrent_uA = 150000;
+  profile.prechargeCurrent_uA = 30000;
+  profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_6;
+  profile.use2xSafetyTimer = false;
+  if (!charger.applyChargeProfile(profile)) {
+    Serial.println("Failed to apply charge profile");
+    while (1) { delay(1000); }
+  }
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 

@@ -24,14 +24,16 @@ void setup() {
 
   // Configure charging profile
   // Safety timer request is in hours; the device supports 3, 6, 12 hours (0 disables).
-  bool ok = charger.initCHG(
-    4400,     // Target charge voltage in mV (will clamp to chemistry max)
-    true,     // Enable fast charging
-    220000,   // Charge current in uA (may clamp to ILIM-safe value)
-    120000,   // Precharge current in uA (will clamp to <=40% of ICHG)
-    150,      // Input current limit in mA
-    3         // Safety timer request in hours
-  );
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4400; // Will clamp to chemistry max
+  profile.enableFastCharge = true;
+  profile.chargeCurrent_uA = 220000;   // May clamp to ILIM-safe value
+  profile.prechargeCurrent_uA = 120000; // Will clamp to <=40% of ICHG
+  profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_3;
+  profile.use2xSafetyTimer = false;
+
+  bool ok = charger.applyChargeProfile(profile);
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 

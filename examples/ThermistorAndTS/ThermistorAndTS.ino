@@ -18,6 +18,20 @@ void setup() {
     while (1) { delay(1000); }
   }
 
+  // Apply a baseline charging profile before enabling TS/JEITA behavior.
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4200;
+  profile.enableFastCharge = true;
+  profile.chargeCurrent_uA = 100000;
+  profile.prechargeCurrent_uA = 20000;
+  profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_3;
+  profile.use2xSafetyTimer = false;
+  if (!charger.applyChargeProfile(profile)) {
+    Serial.println("Failed to apply charge profile");
+    while (1) { delay(1000); }
+  }
+
   // Enable TS function and JEITA-style control.
   charger.EnableTS();
   charger.CustomTSControl();
@@ -25,10 +39,10 @@ void setup() {
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 
   // Configure TS thresholds (0-1200 mV range).
-  charger.setTSVAL(1000, bq25155_const::REG_TS_COLD);
-  charger.setTSVAL(900,  bq25155_const::REG_TS_COOL);
-  charger.setTSVAL(600,  bq25155_const::REG_TS_WARM);
-  charger.setTSVAL(500,  bq25155_const::REG_TS_HOT);
+  charger.setTSVAL(1000, TSThresholdRegister::COLD);
+  charger.setTSVAL(900,  TSThresholdRegister::COOL);
+  charger.setTSVAL(600,  TSThresholdRegister::WARM);
+  charger.setTSVAL(500,  TSThresholdRegister::HOT);
 
   // Reduce charge voltage by 100 mV in WARM region.
   charger.setTSVCHG(100);
@@ -43,16 +57,16 @@ void loop() {
   charger.enforceSafetyFaultPolicy();
 
   Serial.print("TS COLD threshold: ");
-  Serial.print(charger.getTSVAL(bq25155_const::REG_TS_COLD));
+  Serial.print(charger.getTSVAL(TSThresholdRegister::COLD));
   Serial.println(" mV");
   Serial.print("TS COOL threshold: ");
-  Serial.print(charger.getTSVAL(bq25155_const::REG_TS_COOL));
+  Serial.print(charger.getTSVAL(TSThresholdRegister::COOL));
   Serial.println(" mV");
   Serial.print("TS WARM threshold: ");
-  Serial.print(charger.getTSVAL(bq25155_const::REG_TS_WARM));
+  Serial.print(charger.getTSVAL(TSThresholdRegister::WARM));
   Serial.println(" mV");
   Serial.print("TS HOT threshold: ");
-  Serial.print(charger.getTSVAL(bq25155_const::REG_TS_HOT));
+  Serial.print(charger.getTSVAL(TSThresholdRegister::HOT));
   Serial.println(" mV");
 
   Serial.println("--------------------");

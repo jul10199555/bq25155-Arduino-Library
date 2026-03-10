@@ -2,7 +2,7 @@
  * @brief         Header file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.7
+ * @version       1.1.0
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -592,11 +592,150 @@ enum class BatteryChemistry : uint8_t {
     LI_HV_4V4       // 4.40 V max
 };
 
+enum class AlarmComparator : uint8_t {
+    COMP1 = 1,
+    COMP2 = 2,
+    COMP3 = 3
+};
+
+enum class UVLOLevel : uint8_t {
+    UVLO_3V0 = BUVLO_3_0V,
+    UVLO_2V8 = BUVLO_2_8V,
+    UVLO_2V6 = BUVLO_2_6V,
+    UVLO_2V4 = BUVLO_2_4V,
+    UVLO_2V2 = BUVLO_2_2V,
+    UVLO_DISABLED = BUVLO_DIS
+};
+
+enum class SafetyTimerLimit : uint8_t {
+    HOURS_3 = SAFETY_TIMER_LIMIT_3H,
+    HOURS_6 = SAFETY_TIMER_LIMIT_6H,
+    HOURS_12 = SAFETY_TIMER_LIMIT_12H,
+    DISABLED = SAFETY_TIMER_LIMIT_DIS
+};
+
+enum class VINDPMLevel : uint8_t {
+    VINDPM_4V2 = VINDPM_4_2V,
+    VINDPM_4V3 = VINDPM_4_3V,
+    VINDPM_4V4 = VINDPM_4_4V,
+    VINDPM_4V5 = VINDPM_4_5V,
+    VINDPM_4V6 = VINDPM_4_6V,
+    VINDPM_4V7 = VINDPM_4_7V,
+    VINDPM_4V8 = VINDPM_4_8V,
+    VINDPM_4V9 = VINDPM_4_9V
+};
+
+enum class ThermalThreshold : uint8_t {
+    THERM_80C = THERM_THRS_80C,
+    THERM_85C = THERM_THRS_85C,
+    THERM_90C = THERM_THRS_90C,
+    THERM_95C = THERM_THRS_95C,
+    THERM_100C = THERM_THRS_100C,
+    THERM_105C = THERM_THRS_105C,
+    THERM_110C = THERM_THRS_110C,
+    THERM_DISABLED = THERM_THRS_DIS
+};
+
+enum class ILIMLevel : uint8_t {
+    ILIM_50mA = ILIM_50MA,
+    ILIM_100mA = ILIM_100MA,
+    ILIM_150mA = ILIM_150MA,
+    ILIM_200mA = ILIM_200MA,
+    ILIM_300mA = ILIM_300MA,
+    ILIM_400mA = ILIM_400MA,
+    ILIM_500mA = ILIM_500MA,
+    ILIM_600mA = ILIM_600MA
+};
+
+enum class ResetWarnOffset : uint8_t {
+    WARN_HW_MINUS_0_5S = MR_WARN_HW_0_5S,
+    WARN_HW_MINUS_1_0S = MR_WARN_HW_1_0S,
+    WARN_HW_MINUS_1_5S = MR_WARN_HW_1_5S,
+    WARN_HW_MINUS_2_0S = MR_WARN_HW_2_0S
+};
+
+enum class HWResetTimer : uint8_t {
+    HW_RESET_4S = MR_HW_RESET_4S,
+    HW_RESET_8S = MR_HW_RESET_8S,
+    HW_RESET_10S = MR_HW_RESET_10S,
+    HW_RESET_14S = MR_HW_RESET_14S
+};
+
+enum class AutoWakeTimer : uint8_t {
+    AUTO_WAKE_0_6S = AUTOWAKE_0_6S,
+    AUTO_WAKE_1_2S = AUTOWAKE_1_2S,
+    AUTO_WAKE_2_4S = AUTOWAKE_2_4S,
+    AUTO_WAKE_5_0S = AUTOWAKE_5_0S
+};
+
+enum class PMIDRegulation : uint8_t {
+    PMID_BATTERY_TRACK = PMID_BAT_TRACK,
+    PMID_4V4 = PMID_4_4V,
+    PMID_4V5 = PMID_4_5V,
+    PMID_4V6 = PMID_4_6V,
+    PMID_4V7 = PMID_4_7V,
+    PMID_4V8 = PMID_4_8V,
+    PMID_4V9 = PMID_4_9V,
+    PMID_VIN_PASS_THROUGH = PMID_VIN_PTHR
+};
+
+enum class ADCComparatorChannel : uint8_t {
+    DISABLED = ADC_COMPx_DIS,
+    ADCIN = ADC_COMPx_ADCIN,
+    TS = ADC_COMPx_TS,
+    VBAT = ADC_COMPx_VBAT,
+    ICHG = ADC_COMPx_ICHG,
+    VIN = ADC_COMPx_VIN,
+    PMID = ADC_COMPx_PMID,
+    IIN = ADC_COMPx_IIN
+};
+
+enum class ADCReadChannelMask : uint8_t {
+    IIN = EN_IIN_READ_MASK,
+    PMID = EN_PMID_READ_MASK,
+    ICHG = EN_ICHG_READ_MASK,
+    VIN = EN_VIN_READ_MASK,
+    VBAT = EN_VBAT_READ_MASK,
+    TS = EN_TS_READ_MASK,
+    ADCIN = EN_ADCIN_READ_MASK
+};
+
+enum class TSThresholdRegister : uint8_t {
+    COLD = REG_TS_COLD,
+    COOL = REG_TS_COOL,
+    WARM = REG_TS_WARM,
+    HOT = REG_TS_HOT
+};
+
+struct ChargeProfile {
+    uint16_t chargeVoltage_mV = 4200;
+    bool enableFastCharge = true;
+    uint32_t chargeCurrent_uA = 100000;
+    uint32_t prechargeCurrent_uA = 20000;
+    ILIMLevel inputCurrentLimit = ILIMLevel::ILIM_200mA;
+    SafetyTimerLimit safetyTimer = SafetyTimerLimit::HOURS_3;
+    bool use2xSafetyTimer = false;
+};
+
 
 } // namespace bq25155_const
 
 // User-facing alias for cleaner sketches.
 using BatteryChemistry = bq25155_const::BatteryChemistry;
+using ChargeProfile = bq25155_const::ChargeProfile;
+using AlarmComparator = bq25155_const::AlarmComparator;
+using UVLOLevel = bq25155_const::UVLOLevel;
+using SafetyTimerLimit = bq25155_const::SafetyTimerLimit;
+using VINDPMLevel = bq25155_const::VINDPMLevel;
+using ThermalThreshold = bq25155_const::ThermalThreshold;
+using ILIMLevel = bq25155_const::ILIMLevel;
+using ResetWarnOffset = bq25155_const::ResetWarnOffset;
+using HWResetTimer = bq25155_const::HWResetTimer;
+using AutoWakeTimer = bq25155_const::AutoWakeTimer;
+using PMIDRegulation = bq25155_const::PMIDRegulation;
+using ADCComparatorChannel = bq25155_const::ADCComparatorChannel;
+using ADCReadChannelMask = bq25155_const::ADCReadChannelMask;
+using TSThresholdRegister = bq25155_const::TSThresholdRegister;
 // User-facing shorthand constants so sketches can pass chemistry without enum qualification.
 static constexpr BatteryChemistry LI_ION_4V2 = BatteryChemistry::LI_ION_4V2;
 static constexpr BatteryChemistry LI_HV_4V35 = BatteryChemistry::LI_HV_4V35;
@@ -613,9 +752,7 @@ public:
     void setBatteryChemistry(BatteryChemistry chemistry);
     BatteryChemistry getBatteryChemistry() const;
     
-    // Defaults: 100mA fast charge, 4.2V charge voltage, 150mA input limit, safety timer nearest to 4h request
-    bool initCHG(uint16_t BATVoltage_mV = 4200, bool En_FSCHG = true, uint32_t CHGCurrent_uA = 100000, uint32_t PCHGCurrent_uA = 20000,
-                 uint16_t inputCurrentLimit_mA = 200, uint8_t ChgSftyTimer_hours = 4);
+    bool applyChargeProfile(const ChargeProfile &profile);
 
     // --- Configuration Functions ---
     // --- STAT0 Functions ---
@@ -638,14 +775,16 @@ public:
     bool is_CHG_SUSPENDED();
 
     // --- STAT2 Functions ---
-    bool is_Alarm_TRIG(uint8_t AlarmCh);
+    bool is_Alarm_TRIG(AlarmComparator AlarmCh);
     bool is_TS_OPEN();
 
     // --- FLAGx Functions ---
     void ClearAllFlags();
     void readAllFLAGS();
     void FaultsDetected(uint8_t* faultsOut);
-    bool enforceSafetyFaultPolicy(bool *chargeDisabled = nullptr);
+    // Non-destructive by default: uses status bits and cached FLAG values.
+    // Set refreshFlags=true to refresh cached FLAGs first (clears hardware FLAG registers).
+    bool enforceSafetyFaultPolicy(bool *chargeDisabled = nullptr, bool refreshFlags = false);
     
     // --- FLAG0 Functions ---
     uint8_t readFLAG0();
@@ -772,7 +911,7 @@ public:
     bool DisableIBATOCP();
 // --- Under Voltage Set Functions ---
     uint8_t getUVLO();
-    bool setUVLO(uint8_t code);
+    bool setUVLO(UVLOLevel code);
     bool setUVLOto3000mV();
     bool setUVLOto2800mV();
     bool setUVLOto2600mV();
@@ -797,7 +936,7 @@ public:
     bool set2xSafetyTimer();
     // Returns base timer setting (3/6/12h). If 2XTMR_EN is set, effective time may be longer outside CC/CV.
     uint8_t getChgSafetyTimer();
-    bool setChgSafetyTimer(uint8_t code);
+    bool setChgSafetyTimer(SafetyTimerLimit code);
     bool setChgSafetyTimerto3h();
     bool setChgSafetyTimerto6h();
     bool setChgSafetyTimerto12h();
@@ -807,7 +946,7 @@ public:
     bool EnableVINDPM();
     bool DisableVINDPM();
     uint8_t getVINDPM();
-    bool setVINDPM(uint8_t code);
+    bool setVINDPM(VINDPMLevel code);
     bool setVINDPMto4200mV();
     bool setVINDPMto4300mV();
     bool setVINDPMto4400mV();
@@ -820,11 +959,11 @@ public:
     bool EnableDPPM();
     bool DisableDPPM();
     uint8_t getThermalThreshold();
-    bool setThermalThreshold(uint8_t code);
+    bool setThermalThreshold(ThermalThreshold code);
     bool setThermalTemperature(uint8_t Temp_C);
 // --- ILIMCTRL Functions ---
     uint8_t getILIM();
-    bool setILIM(uint8_t code);
+    bool setILIM(ILIMLevel code);
     bool setILIMto50mA();
     bool setILIMto100mA();
     bool setILIMto150mA();
@@ -854,10 +993,10 @@ public:
     bool setWake2TimerTo1s();
     bool setWake2TimerTo2s();
     uint8_t getRstWarnTimer();
-    bool setRstWarnTimer(uint8_t code);
+    bool setRstWarnTimer(ResetWarnOffset code);
     bool setRstWarnTimerms(uint16_t mrst_ms);
     uint8_t getHWRstTimer();
-    bool setHWRstTimer(uint8_t code);
+    bool setHWRstTimer(HWResetTimer code);
     bool setHWRstTimerto4s();
     bool setHWRstTimerto8s();
     bool setHWRstTimerto10s();
@@ -867,7 +1006,7 @@ public:
     bool DisableShipMode();
     bool EnableShipMode();
     uint8_t getAutoWKPTimer();
-    bool setAutoWKPTimer(uint8_t code);
+    bool setAutoWKPTimer(AutoWakeTimer code);
     bool setAutoWKPto0_6s();
     bool setAutoWKPto1_2s();
     bool setAutoWKPto2_4s();
@@ -900,7 +1039,7 @@ public:
     bool PullDownPMID();
 // --- ICCTRL2 Functions ---
     uint8_t getPMID();
-    bool setPMID(uint8_t code);
+    bool setPMID(PMIDRegulation code);
     bool setPMIDmV(uint16_t PMID_mV);
     bool isPGEnabled();
     bool EnablePG();
@@ -927,14 +1066,14 @@ public:
     bool setADCSpeedTo6ms();
     bool setADCSpeedTo3ms();
     uint8_t getADCComp1Ch();
-    bool setADCComp1Ch(uint8_t code);
+    bool setADCComp1Ch(ADCComparatorChannel code);
     bool DisableADCComp1Ch();
 // --- REG_ADCCTRL1 Functions ---
     uint8_t getADCComp2Ch();
-    bool setADCComp2Ch(uint8_t code);
+    bool setADCComp2Ch(ADCComparatorChannel code);
     bool DisableADCComp2Ch();
     uint8_t getADCComp3Ch();
-    bool setADCComp3Ch(uint8_t code);
+    bool setADCComp3Ch(ADCComparatorChannel code);
     bool DisableADCComp3Ch();
     // ADC readings
     uint16_t readVIN(uint8_t Vdecims);
@@ -947,11 +1086,11 @@ public:
     // High-level functions for convenience
     // float getVBATVoltage();
 // --- ADCALARM_COMPx Functions ---
-    uint16_t readADCAlarms(uint8_t ADCAlarmCh, bool AlarmVal);
-    bool setADCAlarms(uint8_t ADCAlarmCh, uint16_t AlarmVal, bool Polarity);
+    uint16_t readADCAlarms(AlarmComparator ADCAlarmCh, bool AlarmVal);
+    bool setADCAlarms(AlarmComparator ADCAlarmCh, uint16_t AlarmVal, bool Polarity);
 // --- ADC_READ_EN Functions ---
-    bool isADCEnabled(uint8_t ADC_Ch);
-    bool setADCChannel(uint8_t ADC_Ch, bool Ch_val);
+    bool isADCEnabled(ADCReadChannelMask ADC_Ch);
+    bool setADCChannel(ADCReadChannelMask ADC_Ch, bool Ch_val);
     bool DisableAllADCCh();
     bool EnableAllADCCh();
     bool isIINADCChEnabled();
@@ -981,8 +1120,8 @@ public:
     uint32_t getTSICHG();
     bool setTSICHG(uint16_t multiple);
 // --- TS_THRESHOLDS Functions ---
-    float getTSVAL(uint8_t TS_REG);
-    bool setTSVAL(uint16_t TS_THRS_mV, uint8_t TS_REG);
+    float getTSVAL(TSThresholdRegister TS_REG);
+    bool setTSVAL(uint16_t TS_THRS_mV, TSThresholdRegister TS_REG);
 // --- DEVICE_ID Functions ---
     uint8_t getDeviceID();
     String getDeviceIDString();
@@ -1006,6 +1145,27 @@ private:
     uint8_t cachedFlag1 = 0;
     uint8_t cachedFlag2 = 0;
     uint8_t cachedFlag3 = 0;
+
+    // Internal raw-code helpers (typed public API forwards into these).
+    bool is_Alarm_TRIG(uint8_t AlarmCh);
+    bool setUVLO(uint8_t code);
+    bool setChgSafetyTimer(uint8_t code);
+    bool setVINDPM(uint8_t code);
+    bool setThermalThreshold(uint8_t code);
+    bool setILIM(uint8_t code);
+    bool setRstWarnTimer(uint8_t code);
+    bool setHWRstTimer(uint8_t code);
+    bool setAutoWKPTimer(uint8_t code);
+    bool setPMID(uint8_t code);
+    bool setADCComp1Ch(uint8_t code);
+    bool setADCComp2Ch(uint8_t code);
+    bool setADCComp3Ch(uint8_t code);
+    uint16_t readADCAlarms(uint8_t ADCAlarmCh, bool AlarmVal);
+    bool setADCAlarms(uint8_t ADCAlarmCh, uint16_t AlarmVal, bool Polarity);
+    bool isADCEnabled(uint8_t ADC_Ch);
+    bool setADCChannel(uint8_t ADC_Ch, bool Ch_val);
+    float getTSVAL(uint8_t TS_REG);
+    bool setTSVAL(uint16_t TS_THRS_mV, uint8_t TS_REG);
 
     // --- Low-level I2C access (for debugging or advanced use) ---
     bool writeRegister(uint8_t reg, uint8_t value);

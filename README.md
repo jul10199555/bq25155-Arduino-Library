@@ -22,6 +22,16 @@ status/fault monitoring, ADC reads, and low-power control.
 - ADC reads for VIN/PMID/VBAT/TS/ADCIN/IIN/ICHG
 - LDO or Load Switch control (0.6 V to 3.7 V, 100 mV steps)
 - Runtime safety helper: `enforceSafetyFaultPolicy()` disables charge on severe faults
+  (non-destructive by default; it uses status bits plus cached FLAG values)
+- Typed enums for code-based register APIs (`ILIMLevel`, `UVLOLevel`, `SafetyTimerLimit`, etc.)
+- Profile API: `applyChargeProfile(const ChargeProfile&)`
+
+## v1.1.0 API break
+
+- Legacy raw code APIs were removed from the public interface.
+- Typed enums are now the public path for code-based configuration.
+- `applyChargeProfile(...)` is the recommended charge-setup entry point.
+- `initCHG(...)` was removed from the public API.
 
 ## Important semantics
 
@@ -29,6 +39,8 @@ status/fault monitoring, ADC reads, and low-power control.
   applies outside CC/CV regulation, so effective time can be longer than the base setting.
 - MR reset warning helper: `setRstWarnTimerms(ms)` chooses the closest warning offset based
   on the current HW reset timer (MR_HW_RESET).
+- `enforceSafetyFaultPolicy(...)` does not clear hardware FLAG registers unless you pass
+  `refreshFlags=true`; call `readAllFLAGS()` yourself when you need FLAG-driven decisions.
 - Battery chemistry is selected in `begin(...)`, and charge voltage is clamped to its maximum:
   - `LI_ION_4V2` (4.20 V), `LI_HV_4V35` (4.35 V), `LI_HV_4V4` (4.40 V).
 
@@ -57,8 +69,14 @@ bq25155 charger;
 void setup() {
     Serial.begin(115200);
     if (charger.begin(2, 5, 20, LI_ION_4V2)) {
-        // Configure charger: 4.2 V, 100 mA, 3 h safety timer
-        charger.initCHG(4200, true, 100000, 25000, 150, 3);
+        ChargeProfile p;
+        p.chargeVoltage_mV = 4200;
+        p.enableFastCharge = true;
+        p.chargeCurrent_uA = 100000;
+        p.prechargeCurrent_uA = 25000;
+        p.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+        p.safetyTimer = SafetyTimerLimit::HOURS_3;
+        charger.applyChargeProfile(p);
     }
 }
 
@@ -80,5 +98,5 @@ void loop() {
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
 
-[rel-ver]: https://img.shields.io/badge/-v1.0.3-green
+[rel-ver]: https://img.shields.io/badge/-v1.1.0-green
 [release]: https://github.com/jul10199555/bq25155-Arduino-Library/releases

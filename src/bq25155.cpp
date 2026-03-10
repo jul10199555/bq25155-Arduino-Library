@@ -2,7 +2,7 @@
  * @brief         CPP file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.0.7
+ * @version       1.1.0
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -42,7 +42,7 @@ bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin, BatteryC
         pinMode(this->_INT_pin, INPUT); // Set input the Interruption pin (Future Update, integrate Interruption on MCU)
         pinMode(this->_CHEN_pin, OUTPUT); // Set CHGEN output pin
         
-        digitalWrite(this->_CHEN_pin, HIGH); // HIGH to Disable charging, Wait for initCHG() command
+        digitalWrite(this->_CHEN_pin, HIGH); // HIGH to disable charging until applyChargeProfile() is called
         digitalWrite(this->_LPM_pin, LOW); // LOW to disable I2C communication when VIN is not present.
 
         return true;
@@ -58,59 +58,23 @@ BatteryChemistry bq25155::getBatteryChemistry() const {
     return _batteryChemistry;
 }
 
-bool bq25155::initCHG(uint16_t BATVoltage_mV, bool En_FSCHG, uint32_t CHGCurrent_uA, uint32_t PCHGCurrent_uA, 
-                      uint16_t inputCurrentLimit_mA, uint8_t ChgSftyTimer_hours) {
-    // --- Apply Settings (using new register mappings) ---
-    if (!setChargeVoltage(BATVoltage_mV)) { return false; }
-    if (En_FSCHG) {
+bool bq25155::applyChargeProfile(const ChargeProfile &profile) {
+    if (!setChargeVoltage(profile.chargeVoltage_mV)) { return false; }
+    if (profile.enableFastCharge) {
         if (!EnableFastCharge()) { return false; }
     } else {
         if (!DisableFastCharge()) { return false; }
     }
 
-    bool ok = false;
-    if (inputCurrentLimit_mA < 75) {
-        ok = setILIMto50mA();
-    } else if (inputCurrentLimit_mA < 125) {
-        ok = setILIMto100mA();
-    } else if (inputCurrentLimit_mA < 175) {
-        ok = setILIMto150mA();
-    } else if (inputCurrentLimit_mA < 250) {
-        ok = setILIMto200mA();
-    } else if (inputCurrentLimit_mA < 350) {
-        ok = setILIMto300mA();
-    } else if (inputCurrentLimit_mA < 450) {
-        ok = setILIMto400mA();
-    } else if (inputCurrentLimit_mA < 550) {
-        ok = setILIMto500mA();
-    } else if (inputCurrentLimit_mA < 650) {
-        ok = setILIMto600mA();
+    if (!setILIM(profile.inputCurrentLimit)) { return false; }
+    if (!setChargeCurrent(profile.chargeCurrent_uA)) { return false; }
+    if (!setPreChargeCurrent(profile.prechargeCurrent_uA)) { return false; }
+
+    if (!setChgSafetyTimer(profile.safetyTimer)) { return false; }
+    if (profile.use2xSafetyTimer) {
+        if (!set2xSafetyTimer()) { return false; }
     } else {
-        ok = setILIMto150mA(); // default suggested option for small batteries
-    }
-    if (!ok) { return false; }
-    if (!setChargeCurrent(CHGCurrent_uA)) { return false; }
-    if (!setPreChargeCurrent(PCHGCurrent_uA)) { return false; }
-
-    if (ChgSftyTimer_hours == 0) {
-        if (!DisableChgSafetyTimer()) { return false; }
-    } else {
-        uint16_t hours_tenths = (uint16_t)ChgSftyTimer_hours * 10;
-        uint16_t best = 30;
-        uint16_t bestDiff = (hours_tenths > 30) ? (hours_tenths - 30) : (30 - hours_tenths);
-
-        uint16_t diff = (hours_tenths > 60) ? (hours_tenths - 60) : (60 - hours_tenths);
-        if (diff < bestDiff) { bestDiff = diff; best = 60; }
-        diff = (hours_tenths > 120) ? (hours_tenths - 120) : (120 - hours_tenths);
-        if (diff < bestDiff) { bestDiff = diff; best = 120; }
-
-        bool timerOk = false;
-        switch (best) {
-            case 30: timerOk = setChgSafetyTimerto3h(); break;
-            case 60: timerOk = setChgSafetyTimerto6h(); break;
-            default: timerOk = setChgSafetyTimerto12h(); break;
-        }
-        if (!timerOk) { return false; }
+        if (!set1xSafetyTimer()) { return false; }
     }
 
     return EnableCharge();
@@ -327,6 +291,9 @@ bool bq25155::is_Alarm_TRIG(uint8_t AlarmCh) {
 
     return (readRegister(REG_STAT_2) & mask) != 0;
 }
+bool bq25155::is_Alarm_TRIG(AlarmComparator AlarmCh) {
+    return is_Alarm_TRIG(static_cast<uint8_t>(AlarmCh));
+}
 
 // if VTS>0.9 = TRUE, VTS<0.9 = FALSE
 bool bq25155::is_TS_OPEN() { return (readRegister(REG_STAT_2) & TS_OPEN_STAT_MASK) != 0; }
@@ -373,12 +340,14 @@ void bq25155::FaultsDetected(uint8_t* faultsOut) {
     }
 }
 
-bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled) {
+bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled, bool refreshFlags) {
     if (chargeDisabled != nullptr) {
         *chargeDisabled = false;
     }
 
-    readAllFLAGS();
+    if (refreshFlags) {
+        readAllFLAGS();
+    }
 
     const bool severeFlagFault =
         VIN_OVP_Flag() ||
@@ -936,6 +905,9 @@ bool bq25155::setUVLO(uint8_t code) {
 
     return writeRegister(REG_BUVLO, r);
 }
+bool bq25155::setUVLO(UVLOLevel code) {
+    return setUVLO(static_cast<uint8_t>(code));
+}
 bool bq25155::setUVLOto3000mV() { return setUVLO(BUVLO_3_0V); }
 bool bq25155::setUVLOto2800mV() { return setUVLO(BUVLO_2_8V); }
 bool bq25155::setUVLOto2600mV() { return setUVLO(BUVLO_2_6V); }
@@ -1036,6 +1008,9 @@ bool bq25155::setChgSafetyTimer(uint8_t code) {
     r |= code;
     return writeRegisterVerify(REG_CHARGERCTRL0, r, SAFETY_TIMER_LIMIT_MASK);
 }
+bool bq25155::setChgSafetyTimer(SafetyTimerLimit code) {
+    return setChgSafetyTimer(static_cast<uint8_t>(code));
+}
 bool bq25155::setChgSafetyTimerto3h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_3H); }
 bool bq25155::setChgSafetyTimerto6h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_6H); }
 bool bq25155::setChgSafetyTimerto12h() { return set1xSafetyTimer() && setChgSafetyTimer(SAFETY_TIMER_LIMIT_12H); }
@@ -1065,6 +1040,9 @@ bool bq25155::setVINDPM(uint8_t code) {
     r &= ~VINPDM_MASK;
     r |= code;
     return writeRegister(REG_CHARGERCTRL1, r);
+}
+bool bq25155::setVINDPM(VINDPMLevel code) {
+    return setVINDPM(static_cast<uint8_t>(code));
 }
 bool bq25155::setVINDPMto4200mV() { return setVINDPM(VINDPM_4_2V); }
 bool bq25155::setVINDPMto4300mV() { return setVINDPM(VINDPM_4_3V); }
@@ -1096,6 +1074,9 @@ bool bq25155::setThermalThreshold(uint8_t code) {
     r &= ~THERM_REG_MASK;
     r |= code;
     return writeRegister(REG_CHARGERCTRL1, r);
+}
+bool bq25155::setThermalThreshold(ThermalThreshold code) {
+    return setThermalThreshold(static_cast<uint8_t>(code));
 }
 bool bq25155::setThermalTemperature(uint8_t Temp_C) {
     uint8_t code = 0;
@@ -1138,6 +1119,9 @@ bool bq25155::setILIM(uint8_t code) {
         ok = setChargeCurrent(getChargeCurrent());
     }
     return exitChargeReconfig(ok);
+}
+bool bq25155::setILIM(ILIMLevel code) {
+    return setILIM(static_cast<uint8_t>(code));
 }
 bool bq25155::setILIMto50mA() { return setILIM(ILIM_50MA); }
 bool bq25155::setILIMto100mA() { return setILIM(ILIM_100MA); }
@@ -1278,6 +1262,9 @@ bool bq25155::setRstWarnTimer(uint8_t code) {
 
     return writeRegister(REG_MRCTRL, r);
 }
+bool bq25155::setRstWarnTimer(ResetWarnOffset code) {
+    return setRstWarnTimer(static_cast<uint8_t>(code));
+}
 bool bq25155::setRstWarnTimerms(uint16_t mrst_ms) {
     // mrst_ms is the desired time (ms) from /MR going low to warning.
     // Datasheet defines warning as tHW_RESET minus {0.5,1.0,1.5,2.0}s.
@@ -1319,6 +1306,9 @@ bool bq25155::setHWRstTimer(uint8_t code) {
 
     return writeRegister(REG_MRCTRL, r);
 }
+bool bq25155::setHWRstTimer(HWResetTimer code) {
+    return setHWRstTimer(static_cast<uint8_t>(code));
+}
 bool bq25155::setHWRstTimerto4s() { return setHWRstTimer(MR_HW_RESET_4S); }
 bool bq25155::setHWRstTimerto8s() { return setHWRstTimer(MR_HW_RESET_8S); }
 bool bq25155::setHWRstTimerto10s() { return setHWRstTimer(MR_HW_RESET_10S); }
@@ -1349,6 +1339,9 @@ bool bq25155::setAutoWKPTimer(uint8_t code) {
     r |= code;
 
     return writeRegister(REG_ICCTRL0, r);
+}
+bool bq25155::setAutoWKPTimer(AutoWakeTimer code) {
+    return setAutoWKPTimer(static_cast<uint8_t>(code));
 }
 bool bq25155::setAutoWKPto0_6s() { return setAutoWKPTimer(AUTOWAKE_0_6S); }
 bool bq25155::setAutoWKPto1_2s() { return setAutoWKPTimer(AUTOWAKE_1_2S); }
@@ -1494,6 +1487,9 @@ bool bq25155::setPMID(uint8_t code) {
     r &= ~PMID_REG_CTRL_MASK;
     r |= code;
     return writeRegister(REG_ICCTRL2, r);
+}
+bool bq25155::setPMID(PMIDRegulation code) {
+    return setPMID(static_cast<uint8_t>(code));
 }
 bool bq25155::setPMIDmV(uint16_t PMID_mV) {
     uint8_t code = 0;
@@ -1646,6 +1642,9 @@ bool bq25155::setADCComp1Ch(uint8_t code) {
     r |= code;
     return writeRegister(REG_ADCCTRL0, r);
 }
+bool bq25155::setADCComp1Ch(ADCComparatorChannel code) {
+    return setADCComp1Ch(static_cast<uint8_t>(code));
+}
 bool bq25155::DisableADCComp1Ch() {
     uint8_t r = readRegister(REG_ADCCTRL0);
     r &= ~ADC_COMP1_MASK;
@@ -1666,6 +1665,9 @@ bool bq25155::setADCComp2Ch(uint8_t code) {
     r |= code;
     return writeRegister(REG_ADCCTRL1, r);
 }
+bool bq25155::setADCComp2Ch(ADCComparatorChannel code) {
+    return setADCComp2Ch(static_cast<uint8_t>(code));
+}
 bool bq25155::DisableADCComp2Ch() {
     uint8_t r = readRegister(REG_ADCCTRL1);
     r &= ~ADC_COMP2_MASK;
@@ -1683,6 +1685,9 @@ bool bq25155::setADCComp3Ch(uint8_t code) {
     r &= ~ADC_COMP3_MASK;
     r |= code;
     return writeRegister(REG_ADCCTRL1, r);
+}
+bool bq25155::setADCComp3Ch(ADCComparatorChannel code) {
+    return setADCComp3Ch(static_cast<uint8_t>(code));
 }
 bool bq25155::DisableADCComp3Ch() {
     uint8_t r = readRegister(REG_ADCCTRL1);
@@ -1732,6 +1737,9 @@ uint16_t bq25155::readADCAlarms(uint8_t ADCAlarmCh, bool AlarmVal) {
         return (Alarm_LSB & ADCALARM_POL) ? 1 : 0;
     }
 }
+uint16_t bq25155::readADCAlarms(AlarmComparator ADCAlarmCh, bool AlarmVal) {
+    return readADCAlarms(static_cast<uint8_t>(ADCAlarmCh), AlarmVal);
+}
 
 bool bq25155::setADCAlarms(uint8_t ADCAlarmCh, uint16_t AlarmVal, bool Polarity) {
     if (AlarmVal > 4095) return false;  // Comparator value is 12-bit max
@@ -1777,12 +1785,18 @@ bool bq25155::setADCAlarms(uint8_t ADCAlarmCh, uint16_t AlarmVal, bool Polarity)
             return false;
     }
 }
+bool bq25155::setADCAlarms(AlarmComparator ADCAlarmCh, uint16_t AlarmVal, bool Polarity) {
+    return setADCAlarms(static_cast<uint8_t>(ADCAlarmCh), AlarmVal, Polarity);
+}
 // --- End ADCALARM_COMPx Settings - ADC Comparators Values ---
 
 // --- Begin ADC_READ_EN Settings - ADC Channels Enable/Disable ---
 bool bq25155::isADCEnabled(uint8_t ADC_Ch) {
     if ((ADC_Ch & VALID_ADC_MASKS) == 0) return false; // not a valid mask
     return (readRegister(REG_ADC_READ_EN) & ADC_Ch) != 0;
+}
+bool bq25155::isADCEnabled(ADCReadChannelMask ADC_Ch) {
+    return isADCEnabled(static_cast<uint8_t>(ADC_Ch));
 }
 
 bool bq25155::setADCChannel(uint8_t ADC_Ch, bool Ch_val) {
@@ -1795,6 +1809,9 @@ bool bq25155::setADCChannel(uint8_t ADC_Ch, bool Ch_val) {
         regValue |= ADC_Ch; // 1b1 = ADC measurement enabled
 
     return writeRegister(REG_ADC_READ_EN, regValue);
+}
+bool bq25155::setADCChannel(ADCReadChannelMask ADC_Ch, bool Ch_val) {
+    return setADCChannel(static_cast<uint8_t>(ADC_Ch), Ch_val);
 }
 
 bool bq25155::DisableAllADCCh() {
@@ -1996,6 +2013,9 @@ float bq25155::getTSVAL(uint8_t TS_REG){
         default: return 0.0f;
     }
 }
+float bq25155::getTSVAL(TSThresholdRegister TS_REG) {
+    return getTSVAL(static_cast<uint8_t>(TS_REG));
+}
 
 bool bq25155::setTSVAL(uint16_t TS_THRS_mV, uint8_t TS_REG){
     // Check for max val
@@ -2011,6 +2031,9 @@ bool bq25155::setTSVAL(uint16_t TS_THRS_mV, uint8_t TS_REG){
         case REG_TS_HOT: return writeRegister(REG_TS_HOT, TS_bits);
         default: return false;
     }
+}
+bool bq25155::setTSVAL(uint16_t TS_THRS_mV, TSThresholdRegister TS_REG) {
+    return setTSVAL(TS_THRS_mV, static_cast<uint8_t>(TS_REG));
 }
 // --- End TS_THRESHOLDS Settings - TS Comparators Thresholds ---
 

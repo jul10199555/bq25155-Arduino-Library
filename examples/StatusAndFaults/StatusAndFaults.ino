@@ -29,14 +29,18 @@ void setup() {
   Serial.print(charger.getDeviceIDString());
   Serial.println(" found!");
 
-  charger.initCHG(
-    4200,    // Charge voltage in mV
-    true,    // Enable fast charge
-    100000,  // Charge current in uA
-    20000,   // Pre-charge current in uA
-    150,     // Input limit in mA
-    3        // Safety timer request in hours
-  );
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4200;
+  profile.enableFastCharge = true;
+  profile.chargeCurrent_uA = 100000;
+  profile.prechargeCurrent_uA = 20000;
+  profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_3;
+  profile.use2xSafetyTimer = false;
+  if (!charger.applyChargeProfile(profile)) {
+    Serial.println("Failed to apply charge profile");
+    while (1) { delay(1000); }
+  }
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 
@@ -78,7 +82,7 @@ void loop() {
     Serial.println("STAT: VIN not good");
   }
 
-  // Call policy helper after printing flags because it reads (and clears) FLAG registers.
+  // Policy helper is non-destructive by default and uses cached FLAG values plus STAT bits.
   bool chargeDisabled = false;
   if (!charger.enforceSafetyFaultPolicy(&chargeDisabled)) {
     Serial.println("Safety policy check failed");

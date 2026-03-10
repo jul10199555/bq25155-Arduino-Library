@@ -45,14 +45,18 @@ void setup() {
   }
 
   // Use small currents to avoid ADC saturation in this example.
-  charger.initCHG(
-    4200,    // Charge voltage in mV
-    false,   // Disable fast charge (smaller steps)
-    10000,   // Charge current in uA
-    5000,    // Pre-charge current in uA
-    50,      // Input limit in mA
-    3        // Safety timer request in hours
-  );
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4200;
+  profile.enableFastCharge = false; // smaller steps
+  profile.chargeCurrent_uA = 10000;
+  profile.prechargeCurrent_uA = 5000;
+  profile.inputCurrentLimit = ILIMLevel::ILIM_50mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_3;
+  profile.use2xSafetyTimer = false;
+  if (!charger.applyChargeProfile(profile)) {
+    Serial.println("Failed to apply charge profile");
+    while (1) { delay(1000); }
+  }
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 

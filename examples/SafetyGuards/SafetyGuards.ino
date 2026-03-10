@@ -22,14 +22,16 @@ void setup() {
   // - VBAT will be clamped by selected chemistry (4.35 V max here)
   // - ICHG will be clamped to remain below ILIM
   // - IPRECHG will be clamped to <=40% of effective ICHG
-  const bool ok = charger.initCHG(
-    4600,    // Requested charge voltage in mV (clamped by chemistry)
-    true,    // Fast-charge range
-    500000,  // Requested charge current in uA
-    200000,  // Requested pre-charge current in uA
-    150,     // Input current limit in mA
-    6        // Safety timer request in hours
-  );
+  ChargeProfile profile;
+  profile.chargeVoltage_mV = 4600; // Requested (clamped by chemistry)
+  profile.enableFastCharge = true;
+  profile.chargeCurrent_uA = 500000;
+  profile.prechargeCurrent_uA = 200000;
+  profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
+  profile.safetyTimer = SafetyTimerLimit::HOURS_6;
+  profile.use2xSafetyTimer = false;
+
+  const bool ok = charger.applyChargeProfile(profile);
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 
