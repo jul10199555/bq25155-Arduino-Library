@@ -17,6 +17,11 @@ void setup() {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
+  // Require 2 consecutive severe samples to trip, and 3 clear samples to re-arm.
+  if (!charger.setFaultAutoDisableFilter(2, 3)) {
+    Serial.println("Invalid fault filter configuration");
+    while (1) { delay(1000); }
+  }
 
   // Intentionally aggressive requests to demonstrate internal clamps:
   // - VBAT will be clamped by selected chemistry (4.35 V max here)

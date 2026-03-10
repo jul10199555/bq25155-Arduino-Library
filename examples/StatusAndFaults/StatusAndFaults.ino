@@ -25,6 +25,11 @@ void setup() {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
+  // Require 2 consecutive severe samples to trip, 2 clear samples to re-arm.
+  if (!charger.setFaultAutoDisableFilter(2, 2)) {
+    Serial.println("Invalid fault filter configuration");
+    while (1) { delay(1000); }
+  }
 
   Serial.print(charger.getDeviceIDString());
   Serial.println(" found!");

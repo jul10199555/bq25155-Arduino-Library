@@ -23,6 +23,7 @@ status/fault monitoring, ADC reads, and low-power control.
 - LDO or Load Switch control (0.6 V to 3.7 V, 100 mV steps)
 - Runtime safety helper: `enforceSafetyFaultPolicy()` disables charge on severe faults
   (non-destructive by default; it uses status bits plus cached FLAG values)
+- Configurable auto-disable debounce/hysteresis via `setFaultAutoDisableFilter(trip, clear)`
 - Typed enums for code-based register APIs (`ILIMLevel`, `UVLOLevel`, `SafetyTimerLimit`, etc.)
 - Profile API: `applyChargeProfile(const ChargeProfile&)`
 
@@ -41,6 +42,8 @@ status/fault monitoring, ADC reads, and low-power control.
   on the current HW reset timer (MR_HW_RESET).
 - `enforceSafetyFaultPolicy(...)` does not clear hardware FLAG registers unless you pass
   `refreshFlags=true`; call `readAllFLAGS()` yourself when you need FLAG-driven decisions.
+- Auto-disable debounce/hysteresis defaults to immediate trip (`trip=1`, `clear=1`). Use
+  `setFaultAutoDisableFilter(trip, clear)` to require consecutive fault/clear samples.
 - Battery chemistry is selected in `begin(...)`, and charge voltage is clamped to its maximum:
   - `LI_ION_4V2` (4.20 V), `LI_HV_4V35` (4.35 V), `LI_HV_4V4` (4.40 V).
 
@@ -69,6 +72,7 @@ bq25155 charger;
 void setup() {
     Serial.begin(115200);
     if (charger.begin(2, 5, 20, LI_ION_4V2)) {
+        charger.setFaultAutoDisableFilter(2, 2); // debounce severe faults
         ChargeProfile p;
         p.chargeVoltage_mV = 4200;
         p.enableFastCharge = true;
@@ -98,5 +102,5 @@ void loop() {
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
 
-[rel-ver]: https://img.shields.io/badge/-v1.1.0-green
+[rel-ver]: https://img.shields.io/badge/-v1.1.1-green
 [release]: https://github.com/jul10199555/bq25155-Arduino-Library/releases

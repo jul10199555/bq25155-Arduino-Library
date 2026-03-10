@@ -2,7 +2,7 @@
  * @brief         CPP file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.1.0
+ * @version       1.1.1
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -340,6 +340,30 @@ void bq25155::FaultsDetected(uint8_t* faultsOut) {
     }
 }
 
+bool bq25155::setFaultAutoDisableFilter(uint8_t faultSamplesToTrip, uint8_t clearSamplesToReset) {
+    if (faultSamplesToTrip == 0 || clearSamplesToReset == 0) {
+        return false;
+    }
+
+    _faultTripThreshold = faultSamplesToTrip;
+    _faultClearThreshold = clearSamplesToReset;
+    resetFaultAutoDisableFilterState();
+    return true;
+}
+
+uint8_t bq25155::getFaultAutoDisableTripCount() const {
+    return _faultTripThreshold;
+}
+
+uint8_t bq25155::getFaultAutoDisableClearCount() const {
+    return _faultClearThreshold;
+}
+
+void bq25155::resetFaultAutoDisableFilterState() {
+    _faultTripCounter = 0;
+    _faultClearCounter = 0;
+}
+
 bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled, bool refreshFlags) {
     if (chargeDisabled != nullptr) {
         *chargeDisabled = false;
@@ -368,12 +392,31 @@ bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled, bool refreshFlags) 
         is_BAT_HOT() ||
         is_TS_OPEN();
 
-    if (!(severeFlagFault || severeStatusFault)) {
+    const bool severeFault = severeFlagFault || severeStatusFault;
+
+    if (!severeFault) {
+        if (_faultClearCounter < _faultClearThreshold) {
+            _faultClearCounter++;
+        }
+        if (_faultClearCounter >= _faultClearThreshold) {
+            _faultTripCounter = 0;
+        }
+        return true;
+    }
+
+    _faultClearCounter = 0;
+    if (_faultTripCounter < _faultTripThreshold) {
+        _faultTripCounter++;
+    }
+    if (_faultTripCounter < _faultTripThreshold) {
         return true;
     }
 
     if (chargeDisabled != nullptr) {
         *chargeDisabled = true;
+    }
+    if (!isChargeEnabled()) {
+        return true;
     }
     return DisableCharge();
 }

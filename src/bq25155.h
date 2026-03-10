@@ -2,7 +2,7 @@
  * @brief         Header file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.1.0
+ * @version       1.1.1
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -785,6 +785,10 @@ public:
     // Non-destructive by default: uses status bits and cached FLAG values.
     // Set refreshFlags=true to refresh cached FLAGs first (clears hardware FLAG registers).
     bool enforceSafetyFaultPolicy(bool *chargeDisabled = nullptr, bool refreshFlags = false);
+    bool setFaultAutoDisableFilter(uint8_t faultSamplesToTrip, uint8_t clearSamplesToReset = 1);
+    uint8_t getFaultAutoDisableTripCount() const;
+    uint8_t getFaultAutoDisableClearCount() const;
+    void resetFaultAutoDisableFilterState();
     
     // --- FLAG0 Functions ---
     uint8_t readFLAG0();
@@ -1139,6 +1143,10 @@ private:
     BatteryChemistry _batteryChemistry = LI_ION_4V2;
     uint8_t _chargeReconfigDepth = 0;
     bool _resumeChargeAfterConfig = false;
+    uint8_t _faultTripThreshold = 1;
+    uint8_t _faultClearThreshold = 1;
+    uint8_t _faultTripCounter = 0;
+    uint8_t _faultClearCounter = 0;
 
     // Cached copies of FLAG registers
     uint8_t cachedFlag0 = 0;
