@@ -8,12 +8,14 @@ static constexpr uint8_t BQ_LPM  = 20; // Low power mode pin
 
 bq25155 charger;
 static constexpr BatteryChemistry BQ_CHEM = LI_HV_4V35;
+static constexpr bool BQ_USE_PG_LED = true;
+static constexpr bool BQ_LED_ON_WHEN_DONE = true;
 
 void setup() {
   Serial.begin(115200);
   while (!Serial) { delay(10); }
 
-  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM)) {
+  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM, BQ_USE_PG_LED)) {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
@@ -35,8 +37,9 @@ void setup() {
   profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
   profile.safetyTimer = SafetyTimerLimit::HOURS_6;
   profile.use2xSafetyTimer = false;
+  profile.ledOnWhenChargeDone = BQ_LED_ON_WHEN_DONE;
 
-  const bool ok = charger.applyChargeProfile(profile);
+  const bool ok = charger.applyChargeProfile(profile); // LED on only when done/safety timer fault
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 

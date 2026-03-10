@@ -2,7 +2,7 @@
  * @brief         Header file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.1.1
+ * @version       1.1.4
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -715,6 +715,7 @@ struct ChargeProfile {
     ILIMLevel inputCurrentLimit = ILIMLevel::ILIM_200mA;
     SafetyTimerLimit safetyTimer = SafetyTimerLimit::HOURS_3;
     bool use2xSafetyTimer = false;
+    bool ledOnWhenChargeDone = true;
 };
 
 
@@ -748,7 +749,7 @@ public:
 
     // begin I2C Communication, and initial settings for configuration pins
     bool begin(uint8_t CHEN_pin = 2, uint8_t INT_pin = 5, uint8_t LPM_pin = 20,
-               BatteryChemistry chemistry = LI_ION_4V2);
+               BatteryChemistry chemistry = LI_ION_4V2, bool usePGIndicator = true);
     void setBatteryChemistry(BatteryChemistry chemistry);
     BatteryChemistry getBatteryChemistry() const;
     
@@ -1143,6 +1144,9 @@ private:
     BatteryChemistry _batteryChemistry = LI_ION_4V2;
     uint8_t _chargeReconfigDepth = 0;
     bool _resumeChargeAfterConfig = false;
+    bool _usePGIndicator = true;
+    bool _pgLedOnWhenChargeDone = true;
+    bool _pgChargeDoneLatched = false;
     uint8_t _faultTripThreshold = 1;
     uint8_t _faultClearThreshold = 1;
     uint8_t _faultTripCounter = 0;
@@ -1174,6 +1178,9 @@ private:
     bool setADCChannel(uint8_t ADC_Ch, bool Ch_val);
     float getTSVAL(uint8_t TS_REG);
     bool setTSVAL(uint16_t TS_THRS_mV, uint8_t TS_REG);
+    bool refreshPGIndicatorFromState();
+    void latchPGCompletionFromCachedFlags();
+    void resetPGLatchForNewChargeCycle();
 
     // --- Low-level I2C access (for debugging or advanced use) ---
     bool writeRegister(uint8_t reg, uint8_t value);

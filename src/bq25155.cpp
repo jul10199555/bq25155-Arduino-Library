@@ -2,7 +2,7 @@
  * @brief         CPP file for bq25155's Arduino library
  * @note          Implementation of I2C functions for controlling 
  *                bq25155 1S LiIon+/LiPo Charger.
- * @version       1.1.1
+ * @version       1.1.4
  * @creation date 2025-06-16
  * @updated date  2026-03-09
  * @author        jul10199555
@@ -19,13 +19,16 @@ using namespace bq25155_const;
 bq25155::bq25155() : _i2cPort(&Wire), _i2cAddress(bq25155_ADDR) {}
 bq25155::bq25155(TwoWire *wire, uint8_t address) : _i2cPort(wire), _i2cAddress(address) {}
 
-bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin, BatteryChemistry chemistry) {
+bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin, BatteryChemistry chemistry, bool usePGIndicator) {
     if (CHEN_pin == 0xFF || INT_pin == 0xFF || LPM_pin == 0xFF) { return false; }
 
     this->_CHEN_pin = CHEN_pin;
     this->_INT_pin  = INT_pin;
     this->_LPM_pin  = LPM_pin;
     this->_batteryChemistry = chemistry;
+    this->_usePGIndicator = usePGIndicator;
+    this->_pgLedOnWhenChargeDone = true;
+    this->_pgChargeDoneLatched = false;
 
     pinMode(this->_LPM_pin, OUTPUT); // Set LPM output pin
 
@@ -45,6 +48,11 @@ bool bq25155::begin(uint8_t CHEN_pin, uint8_t INT_pin, uint8_t LPM_pin, BatteryC
         digitalWrite(this->_CHEN_pin, HIGH); // HIGH to disable charging until applyChargeProfile() is called
         digitalWrite(this->_LPM_pin, LOW); // LOW to disable I2C communication when VIN is not present.
 
+        if (_usePGIndicator) {
+            if (!setPGasGPOD()) { return false; }
+            if (!DisablePG()) { return false; }
+        }
+
         return true;
     } else
         return false;
@@ -59,6 +67,9 @@ BatteryChemistry bq25155::getBatteryChemistry() const {
 }
 
 bool bq25155::applyChargeProfile(const ChargeProfile &profile) {
+    _pgLedOnWhenChargeDone = profile.ledOnWhenChargeDone;
+    resetPGLatchForNewChargeCycle();
+
     if (!setChargeVoltage(profile.chargeVoltage_mV)) { return false; }
     if (profile.enableFastCharge) {
         if (!EnableFastCharge()) { return false; }
@@ -78,6 +89,30 @@ bool bq25155::applyChargeProfile(const ChargeProfile &profile) {
     }
 
     return EnableCharge();
+}
+
+void bq25155::resetPGLatchForNewChargeCycle() {
+    _pgChargeDoneLatched = false;
+}
+
+void bq25155::latchPGCompletionFromCachedFlags() {
+    if ((cachedFlag0 & CHARGE_DONE_FLAG_MASK) != 0 ||
+        (cachedFlag3 & SAFETY_TMR_FAULT_FLAG_MASK) != 0) {
+        _pgChargeDoneLatched = true;
+    }
+}
+
+bool bq25155::refreshPGIndicatorFromState() {
+    if (!_usePGIndicator) {
+        return true;
+    }
+
+    if (!isChargeEnabled()) {
+        return DisablePG();
+    }
+
+    const bool ledOn = _pgLedOnWhenChargeDone ? _pgChargeDoneLatched : !_pgChargeDoneLatched;
+    return ledOn ? EnablePG() : DisablePG();
 }
 
 uint16_t bq25155::getChemistryMaxChargeVoltage_mV() const {
@@ -259,7 +294,14 @@ uint32_t bq25155::GenADCIPRead(uint8_t ADC_DATA_MSB, uint8_t ADC_DATA_LSB, uint8
 
 // --- Begin STAT0 Register - Charger Status ---
 bool bq25155::is_CHRG_CV() { return (readRegister(REG_STAT_0) & CHRG_CV_STAT_MASK) != 0; }
-bool bq25155::is_CHARGE_DONE() { return (readRegister(REG_STAT_0) & CHARGE_DONE_STAT_MASK) != 0; }
+bool bq25155::is_CHARGE_DONE() {
+    const bool done = (readRegister(REG_STAT_0) & CHARGE_DONE_STAT_MASK) != 0;
+    if (done) {
+        _pgChargeDoneLatched = true;
+        refreshPGIndicatorFromState();
+    }
+    return done;
+}
 bool bq25155::is_IINLIM_EN() { return (readRegister(REG_STAT_0) & IINLIM_ACTIVE_STAT_MASK) != 0; }
 bool bq25155::is_VDPPM_EN() { return (readRegister(REG_STAT_0) & VDPPM_ACTIVE_STAT_MASK) != 0; }
 bool bq25155::is_VINDPM_EN() { return (readRegister(REG_STAT_0) & VINDPM_ACTIVE_STAT_MASK) != 0; }
@@ -307,6 +349,9 @@ void bq25155::ClearAllFlags() {
     readRegister(REG_FLAG_1);
     readRegister(REG_FLAG_2);
     readRegister(REG_FLAG_3);
+
+    resetPGLatchForNewChargeCycle();
+    refreshPGIndicatorFromState();
 }
 
 // Reads and caches all FLAG registers at once
@@ -315,6 +360,9 @@ void bq25155::readAllFLAGS() {
     cachedFlag1 = readRegister(REG_FLAG_1);
     cachedFlag2 = readRegister(REG_FLAG_2);
     cachedFlag3 = readRegister(REG_FLAG_3);
+
+    latchPGCompletionFromCachedFlags();
+    refreshPGIndicatorFromState();
 }
 
 // Count how many flags are triggered per FLAG register.
@@ -372,6 +420,8 @@ bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled, bool refreshFlags) 
     if (refreshFlags) {
         readAllFLAGS();
     }
+    latchPGCompletionFromCachedFlags();
+    refreshPGIndicatorFromState();
 
     const bool severeFlagFault =
         VIN_OVP_Flag() ||
@@ -425,6 +475,8 @@ bool bq25155::enforceSafetyFaultPolicy(bool *chargeDisabled, bool refreshFlags) 
 // Once FLAG0 is readed, its values are cleared.
 uint8_t bq25155::readFLAG0() {
     cachedFlag0 = readRegister(REG_FLAG_0);
+    latchPGCompletionFromCachedFlags();
+    refreshPGIndicatorFromState();
     return cachedFlag0;
 }
 
@@ -501,6 +553,8 @@ bool bq25155::VTS_OPEN_Flag() { return (cachedFlag2 & TS_OPEN_FLAG_MASK) != 0; }
 // Once FLAG3 is readed, its values are cleared.
 uint8_t bq25155::readFLAG3() {
     cachedFlag3 = readRegister(REG_FLAG_3);
+    latchPGCompletionFromCachedFlags();
+    refreshPGIndicatorFromState();
     return cachedFlag3;
 }
 
@@ -697,9 +751,9 @@ uint16_t bq25155::getChargeVoltage() {
 }
 
 bool bq25155::setChargeVoltage(uint16_t target_mV) {
-    if (target_mV < 3600) { return false; }
     if (!enterChargeReconfig()) { return false; }
 
+    if (target_mV < 3600) { target_mV = 3600; }
     uint16_t chemistryMax_mV = getChemistryMaxChargeVoltage_mV();
     if (target_mV > chemistryMax_mV) { target_mV = chemistryMax_mV; }
 
@@ -771,6 +825,7 @@ bool bq25155::setChargeCurrent(uint32_t current_uA) {
 
     const bool fastCharge = isFastChargeEnabled();
     const uint32_t currentStep_uA = fastCharge ? 2500UL : 1250UL;
+    const uint32_t modeMax_uA = fastCharge ? 500000UL : 318750UL;
 
     // Keep ICHG strictly below the currently configured ILIM level.
     uint32_t ilim_uA = 50000UL;
@@ -786,6 +841,9 @@ bool bq25155::setChargeCurrent(uint32_t current_uA) {
         default: break;
     }
     uint32_t maxAllowed_uA = (ilim_uA > currentStep_uA) ? (ilim_uA - currentStep_uA) : 0UL;
+    if (maxAllowed_uA > modeMax_uA) {
+        maxAllowed_uA = modeMax_uA;
+    }
     if (current_uA > maxAllowed_uA) {
         current_uA = maxAllowed_uA;
     }
@@ -838,8 +896,31 @@ uint32_t bq25155::getPrechargeCurrent() {
 bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
     if (!enterChargeReconfig()) { return false; }
 
+    const bool fastCharge = isFastChargeEnabled();
+    uint32_t maxPrecharge_uA = fastCharge ? 77500UL : 38750UL;
+
+    // Keep pre-charge current at/below the current ILIM setting.
+    uint32_t ilim_uA = 50000UL;
+    switch (getILIM()) {
+        case ILIM_50MA:  ilim_uA = 50000UL; break;
+        case ILIM_100MA: ilim_uA = 100000UL; break;
+        case ILIM_150MA: ilim_uA = 150000UL; break;
+        case ILIM_200MA: ilim_uA = 200000UL; break;
+        case ILIM_300MA: ilim_uA = 300000UL; break;
+        case ILIM_400MA: ilim_uA = 400000UL; break;
+        case ILIM_500MA: ilim_uA = 500000UL; break;
+        case ILIM_600MA: ilim_uA = 600000UL; break;
+        default: break;
+    }
+    if (maxPrecharge_uA > ilim_uA) {
+        maxPrecharge_uA = ilim_uA;
+    }
+
     // Cap pre-charge current to 40% of currently configured ICHG.
-    uint32_t maxPrecharge_uA = (getChargeCurrent() * 40UL) / 100UL;
+    uint32_t ichgBasedMax_uA = (getChargeCurrent() * 40UL) / 100UL;
+    if (maxPrecharge_uA > ichgBasedMax_uA) {
+        maxPrecharge_uA = ichgBasedMax_uA;
+    }
     if (current_uA > maxPrecharge_uA) {
         current_uA = maxPrecharge_uA;
     }
@@ -847,7 +928,7 @@ bool bq25155::setPreChargeCurrent(uint32_t current_uA) {
     uint8_t IPCHGbits = readRegister(REG_PCHRGCTRL);
     uint8_t Ibits = 0;
 
-    if (isFastChargeEnabled()) {
+    if (fastCharge) {
         // 77,500 uA max pre-charge current = 31 * 2500
         if (current_uA >= 77500)
             Ibits = 31;
@@ -1044,7 +1125,7 @@ uint8_t bq25155::getChgSafetyTimer() {
     return baseTenths;
 }
 bool bq25155::setChgSafetyTimer(uint8_t code) {
-    if (code > 3) return false;
+    if (code > 3) code = 3;
     uint8_t r = readRegister(REG_CHARGERCTRL0);
     code <<= 1;
     r &= ~SAFETY_TIMER_LIMIT_MASK;
@@ -1149,7 +1230,7 @@ bool bq25155::setThermalTemperature(uint8_t Temp_C) {
 // --- Begin ILIMCTRL Settings - Input Current Limit Level Selection ---
 uint8_t bq25155::getILIM() { return (readRegister(REG_ILIMCTRL) & ILIM_MASK); }
 bool bq25155::setILIM(uint8_t code) {
-    if (code > 7) return false;
+    if (code > 7) code = 7;
     if (!enterChargeReconfig()) { return false; }
 
     uint8_t r = readRegister(REG_ILIMCTRL);
@@ -1588,13 +1669,25 @@ bool bq25155::EnableCharge() {
     digitalWrite(this->_CHEN_pin, LOW); // LOW to Enable charging
     uint8_t r = readRegister(REG_ICCTRL2);
     r &= ~CHARGER_DISABLE_MASK; // 1b0 = Charge enabled if /CE pin is low
-    return writeRegister(REG_ICCTRL2, r);
+    if (!writeRegister(REG_ICCTRL2, r)) {
+        return false;
+    }
+
+    resetPGLatchForNewChargeCycle();
+    return refreshPGIndicatorFromState();
 }
 bool bq25155::DisableCharge() {
     digitalWrite(this->_CHEN_pin, HIGH); // HIGH to Disable charging
     uint8_t r = readRegister(REG_ICCTRL2);
     r |= CHARGER_DISABLE_MASK; // 1b1 = Charge disabled
-    return writeRegister(REG_ICCTRL2, r);
+    if (!writeRegister(REG_ICCTRL2, r)) {
+        return false;
+    }
+
+    if (_usePGIndicator) {
+        return DisablePG();
+    }
+    return true;
 }
 // --- End ICCTRL2 Settings - MR behavior, ADCIN mode, PG mode, PMID mode ---
 

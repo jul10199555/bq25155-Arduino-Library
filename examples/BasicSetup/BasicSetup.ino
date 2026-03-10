@@ -6,6 +6,8 @@ static constexpr uint8_t BQ_CHEN = 2;  // Charge enable pin
 static constexpr uint8_t BQ_INT  = 5;  // Interrupt pin (open-drain)
 static constexpr uint8_t BQ_LPM  = 20; // Low power mode pin
 static constexpr BatteryChemistry BQ_CHEM = LI_ION_4V2;
+static constexpr bool BQ_USE_PG_LED = true;
+static constexpr bool BQ_LED_ON_WHEN_DONE = false;
 
 bq25155 charger;
 
@@ -14,7 +16,7 @@ void setup() {
   while (!Serial) { delay(10); }
 
   // Initialize with control pins: CHEN, INT, LPM
-  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM)) {
+  if (!charger.begin(BQ_CHEN, BQ_INT, BQ_LPM, BQ_CHEM, BQ_USE_PG_LED)) {
     Serial.println("bq25155 not found!");
     while (1) { delay(1000); }
   }
@@ -32,8 +34,9 @@ void setup() {
   profile.inputCurrentLimit = ILIMLevel::ILIM_150mA;
   profile.safetyTimer = SafetyTimerLimit::HOURS_3;
   profile.use2xSafetyTimer = false;
+  profile.ledOnWhenChargeDone = BQ_LED_ON_WHEN_DONE;
 
-  bool ok = charger.applyChargeProfile(profile);
+  bool ok = charger.applyChargeProfile(profile); // LED on while charging is active
   // Safety timer supports 3/6/12 hours (0 disables); 2x slow only applies outside CC/CV.
   // setRstWarnTimerms(ms) selects the closest MR warning offset based on current HW reset timer.
 

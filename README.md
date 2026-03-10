@@ -24,6 +24,10 @@ status/fault monitoring, ADC reads, and low-power control.
 - Runtime safety helper: `enforceSafetyFaultPolicy()` disables charge on severe faults
   (non-destructive by default; it uses status bits plus cached FLAG values)
 - Configurable auto-disable debounce/hysteresis via `setFaultAutoDisableFilter(trip, clear)`
+- Optional PG-pin LED indicator management:
+  - `begin(..., usePGIndicator=true)` enables PG management and sets PG as GPOD
+  - `ChargeProfile::ledOnWhenChargeDone` selects done-active vs charge-active LED logic
+  - `begin(..., false)` leaves PG untouched for fully manual control
 - Typed enums for code-based register APIs (`ILIMLevel`, `UVLOLevel`, `SafetyTimerLimit`, etc.)
 - Profile API: `applyChargeProfile(const ChargeProfile&)`
 
@@ -71,7 +75,7 @@ bq25155 charger;
 
 void setup() {
     Serial.begin(115200);
-    if (charger.begin(2, 5, 20, LI_ION_4V2)) {
+    if (charger.begin(2, 5, 20, LI_ION_4V2, true)) {
         charger.setFaultAutoDisableFilter(2, 2); // debounce severe faults
         ChargeProfile p;
         p.chargeVoltage_mV = 4200;
@@ -80,6 +84,7 @@ void setup() {
         p.prechargeCurrent_uA = 25000;
         p.inputCurrentLimit = ILIMLevel::ILIM_150mA;
         p.safetyTimer = SafetyTimerLimit::HOURS_3;
+        p.ledOnWhenChargeDone = true; // LED on when done/safety-timer termination
         charger.applyChargeProfile(p);
     }
 }
@@ -98,9 +103,10 @@ void loop() {
 - `examples/PowerAndLdo` - LDO/load switch control
 - `examples/ThermistorAndTS` - TS thresholds and JEITA behavior
 - `examples/SafetyGuards` - chemistry-based VBAT clamp, current caps, and runtime fault policy
+- `examples/ManualPGControl` - `begin(..., false)` and full manual PG indicator handling
 
 [lic-shield]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license]: https://github.com/jul10199555/bq25155-Arduino-Library/blob/main/LICENSE
 
-[rel-ver]: https://img.shields.io/badge/-v1.1.1-green
+[rel-ver]: https://img.shields.io/badge/-v1.1.4-green
 [release]: https://github.com/jul10199555/bq25155-Arduino-Library/releases
